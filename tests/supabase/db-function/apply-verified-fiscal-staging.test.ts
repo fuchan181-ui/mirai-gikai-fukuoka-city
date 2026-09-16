@@ -50,6 +50,10 @@ const SERIES_CODE = "fiscal-apply-test-series";
 const SECONDARY_SERIES_CODE = "fiscal-apply-test-series-secondary";
 const TITLE = "令和73年度予算概要";
 const SOURCE_URL = "https://example.com/fiscal-apply-test.pdf";
+// 実データの款キー（welfare など）と同じキーを使うと、既に公開済みの分類が
+// ある環境だけ新規作成が省かれ、結果が環境に依存する。テスト専用のキーを使う。
+const REPLAY_CLASSIFICATION_KEY = "fiscal_apply_test_welfare";
+const REPLAY_CLASSIFICATION_LABEL = "民生費";
 
 function ingestionFixtureSql(
   ids: FixtureIds,
@@ -811,11 +815,11 @@ describe("apply_verified_fiscal_staging()", () => {
             matchedTargetId: MATCHED_TARGET_ID,
           }),
           amountRow({
-            sourceRecordKey: "amount:welfare",
+            sourceRecordKey: "amount:fiscal_apply_test_welfare",
             payload: {
               amountYen: "2000",
-              classificationKey: "welfare",
-              sourceClassificationLabel: "民生費",
+              classificationKey: REPLAY_CLASSIFICATION_KEY,
+              sourceClassificationLabel: REPLAY_CLASSIFICATION_LABEL,
             },
           }),
         ],
@@ -829,7 +833,7 @@ describe("apply_verified_fiscal_staging()", () => {
         select ${applyCallSql(REPLAY)} into v_result;
         if (v_result ->> 'amountCount')::integer <> 2
           or (v_result ->> 'amountSetCount')::integer <> 1
-          or (v_result ->> 'classificationCount')::integer <> 1 then
+          or (v_result ->> 'classificationCount')::integer <> 2 then
           raise exception 'unexpected apply result %', v_result;
         end if;
         if (
@@ -872,6 +876,41 @@ describe("apply_verified_fiscal_staging()", () => {
             and source_version_id = '${REPLAY.sourceVersionId}'
         ) <> 1 then
           raise exception 'published edition observation is not the replay';
+        end if;
+        -- 差し替えた観測だけを根拠にしていた公開分類は、作り直す。
+        if (
+          select count(*)
+          from public.fiscal_classification_revisions revision
+          join public.fiscal_classifications classification
+            on classification.id = revision.classification_id
+          where classification.canonical_key = 'assembly'
+            and revision.publication_state = 'published'
+            and revision.valid_from_fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'replayed classification was not republished';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_classification_revisions revision
+          join public.fiscal_classifications classification
+            on classification.id = revision.classification_id
+          where classification.canonical_key = 'assembly'
+            and revision.publication_state = 'superseded'
+        ) <> 1 then
+          raise exception
+            'replayed classification revision was not superseded';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_classification_revisions revision
+          join public.fiscal_classifications classification
+            on classification.id = revision.classification_id
+          where classification.canonical_key = '${REPLAY_CLASSIFICATION_KEY}'
+            and revision.publication_state = 'published'
+            and revision.display_label = '${REPLAY_CLASSIFICATION_LABEL}'
+            and revision.valid_from_fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'new classification was not published';
         end if;
         if (
           select count(*)
