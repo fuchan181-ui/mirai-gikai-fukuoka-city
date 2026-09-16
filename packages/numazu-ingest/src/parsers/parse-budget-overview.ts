@@ -6,22 +6,23 @@ import {
   REVENUE_SOURCE_CLASSIFICATIONS,
 } from "../shared/fiscal-classifications";
 import type { ParsedFiscalStagingRecord } from "../shared/utils/build-fiscal-staging";
+import { compactFiscalText as compact } from "../shared/utils/compact-fiscal-text";
+import { formatFiscalYearLabel } from "../shared/utils/fiscal-year-label";
 import { parseFiscalInteger } from "../shared/utils/parse-fiscal-amount-value";
 import {
   buildFiscalAmountRecord,
   type FiscalParserResult,
 } from "./fiscal-parser-types";
 
-function compact(text: string): string {
-  return text.normalize("NFKC").replace(/\s/g, "");
-}
+/** 増減率は "88,450.0" のように桁区切りを含む。 */
+const PUBLISHED_RATIO_PATTERN = /^-?\d[\d,]*\.\d$/;
 
 function failure(message: string): FiscalParserResult {
   return {
     records: [],
     validationSummary: [
       {
-        ruleCode: "budget_2026_validation_failed",
+        ruleCode: "budget_overview_validation_failed",
         severity: "hard_error",
         message,
       },
@@ -37,11 +38,14 @@ function classificationAt(
   scheme: string
 ): AmountClassification {
   const entry = classifications[index];
+  // 款数と並び順は照合済みで、ここへ来る時点で必ず存在する。
+  // 添字アクセスの型を絞るためのガードとして残す。
   if (!entry) throw new Error("classification index out of range");
   return { label: entry.label, key: entry.key, scheme };
 }
 
 function amountRecord(options: {
+  fiscalYear: number;
   amount: bigint;
   sourceValueText: string;
   page: number;
@@ -49,7 +53,7 @@ function amountRecord(options: {
   classification?: AmountClassification;
 }): ParsedFiscalStagingRecord {
   return buildFiscalAmountRecord({
-    fiscalYear: 2026,
+    fiscalYear: options.fiscalYear,
     eventKind: "initial_budget",
     decisionStage: "proposed",
     measure: options.revenue ? "revenue_budget" : "expenditure_budget",
@@ -95,7 +99,7 @@ function comparisonRow(text: string): ComparisonRow | null {
     .split(/\s+/);
   if (
     cells.length !== 6 ||
-    ![1, 3, 5].every((i) => /^-?\d+\.\d$/.test(cells[i] ?? ""))
+    ![1, 3, 5].every((i) => PUBLISHED_RATIO_PATTERN.test(cells[i] ?? ""))
   )
     return null;
   const current = parseFiscalInteger(cells[0] ?? "");
@@ -191,15 +195,25 @@ function withPublishedMetrics(
   return record;
 }
 
-export function parseGeneralBudget2026(text: string): FiscalParserResult {
+/**
+ * 歳入歳出予算款別前年度比較表から当年度の款別内訳を読む。
+ * 表題・ページ構成は年度で変わらないため、年度はprofileから受け取って照合する。
+ */
+export function parseGeneralBudget(
+  text: string,
+  fiscalYear: number
+): FiscalParserResult {
+  const fiscalYearLabel = formatFiscalYearLabel(fiscalYear);
   const pages = text.replace(/\f\s*$/, "").split("\f");
   const identity = compact(pages[0] ?? "");
   if (
     pages.length !== 2 ||
-    !identity.includes("令和8年度歳入歳出予算款別前年度比較表") ||
+    !identity.includes(`${fiscalYearLabel}歳入歳出予算款別前年度比較表`) ||
     !identity.includes("(1)一般会計")
   )
-    return failure("令和8年度一般会計の年度・表題・ページ構造を確認できません");
+    return failure(
+      `${fiscalYearLabel}一般会計の年度・表題・ページ構造を確認できません`
+    );
   const revenue = parseComparisonPage(
     pages[0],
     "入",
@@ -219,6 +233,7 @@ export function parseGeneralBudget2026(text: string): FiscalParserResult {
   const records = [
     withPublishedMetrics(
       amountRecord({
+        fiscalYear,
         amount: revenue.total.amounts[0],
         sourceValueText: revenue.total.sourceValueText,
         page: 1,
@@ -228,6 +243,7 @@ export function parseGeneralBudget2026(text: string): FiscalParserResult {
     ),
     withPublishedMetrics(
       amountRecord({
+        fiscalYear,
         amount: expenditure.total.amounts[0],
         sourceValueText: expenditure.total.sourceValueText,
         page: 2,
@@ -237,6 +253,7 @@ export function parseGeneralBudget2026(text: string): FiscalParserResult {
     ...expenditure.rows.map((row, index) =>
       withPublishedMetrics(
         amountRecord({
+          fiscalYear,
           amount: row.values.amounts[0],
           sourceValueText: row.values.sourceValueText,
           page: 2,
@@ -252,6 +269,7 @@ export function parseGeneralBudget2026(text: string): FiscalParserResult {
     ...revenue.rows.map((row, index) =>
       withPublishedMetrics(
         amountRecord({
+          fiscalYear,
           amount: row.values.amounts[0],
           sourceValueText: row.values.sourceValueText,
           page: 1,
@@ -270,13 +288,13 @@ export function parseGeneralBudget2026(text: string): FiscalParserResult {
     records,
     validationSummary: [
       {
-        ruleCode: "budget_2026_control_totals_passed",
+        ruleCode: "general_budget_control_totals_passed",
         severity: "info",
         message:
           "歳入23款・歳出13款の合計、前年度差額、歳入歳出の一致を確認しました",
       },
       {
-        ruleCode: "budget_2026_classification_breakdown_extracted",
+        ruleCode: "general_budget_classification_breakdown_extracted",
         severity: "info",
         message: `歳入${REVENUE_SOURCE_CLASSIFICATIONS.length}款・歳出${EXPENDITURE_PURPOSE_CLASSIFICATIONS.length}款の内訳を分類キー付きで抽出しました`,
       },
@@ -284,7 +302,82 @@ export function parseGeneralBudget2026(text: string): FiscalParserResult {
   };
 }
 
-export function parseCouncilBudget2026(text: string): FiscalParserResult {
+type CouncilExpenseBreakdown = {
+  general: bigint;
+  project: bigint;
+  generalItemCount: number;
+  projectItemCount: number;
+};
+
+function sumAmounts(values: readonly bigint[]): bigint {
+  return values.reduce((total, value) => total + value, 0n);
+}
+
+/**
+ * 議会費の内訳を読む。一般経費・事業費の区分と、その下に並ぶ費目数は年度で
+ * 変わる（令和5年度の事業費は活性化推進事業費と100周年記念事業費の2件）ため、
+ * 固定の費目名ではなく区分の額と費目の合計を突合する。
+ */
+function parseCouncilExpenseBreakdown(
+  text: string
+): CouncilExpenseBreakdown | null {
+  let general: bigint | null = null;
+  let project: bigint | null = null;
+  let section: "general" | "project" | null = null;
+  const generalItems: bigint[] = [];
+  const projectItems: bigint[] = [];
+  for (const line of text.split("\n")) {
+    const normalized = compact(line);
+    // 区分行は右カラムの注記と同じテキスト行に連結する年度がある。
+    const sectionMatch = normalized.match(/^○(一般経費|事業費)([\d,]+)/);
+    if (sectionMatch) {
+      const amount = parseFiscalInteger(sectionMatch[2] ?? "");
+      if (amount === null) return null;
+      if (sectionMatch[1] === "一般経費") {
+        general = amount;
+        section = "general";
+      } else {
+        project = amount;
+        section = "project";
+      }
+      continue;
+    }
+    // 費目は「・人件費418,900（…）」の形で並び、金額に単位記号は付かない。
+    // 「市議会100周年記念事業費」のように費目名へ数字が入るため、注記を除いた
+    // 行末の金額を費目額として読む。
+    const itemMatch = normalized
+      .replace(/[(（].*$/, "")
+      .match(/^・(.+?)([\d,]+)$/);
+    if (!itemMatch || section === null) continue;
+    const amount = parseFiscalInteger(itemMatch[2] ?? "");
+    if (amount === null) return null;
+    if (section === "general") generalItems.push(amount);
+    else projectItems.push(amount);
+  }
+  if (general === null || project === null) return null;
+  if (
+    generalItems.length === 0 ||
+    projectItems.length === 0 ||
+    sumAmounts(generalItems) !== general ||
+    sumAmounts(projectItems) !== project
+  )
+    return null;
+  return {
+    general,
+    project,
+    generalItemCount: generalItems.length,
+    projectItemCount: projectItems.length,
+  };
+}
+
+/** 議会費の款行。PDFは「1 議 会 費 460,162」のように字間へ空白を入れる。 */
+const COUNCIL_TOTAL_PATTERN = /^\s*1\s*議\s*会\s*費\s+([\d,]+)(?=\s|$)/;
+
+export function parseCouncilBudget(
+  text: string,
+  fiscalYear: number
+): FiscalParserResult {
+  const fiscalYearLabel = formatFiscalYearLabel(fiscalYear);
   if (text.replace(/\f\s*$/, "").includes("\f"))
     return failure("議会費の1ページ構成を確認できません");
   const normalized = compact(text);
@@ -296,53 +389,31 @@ export function parseCouncilBudget2026(text: string): FiscalParserResult {
     !normalized.includes("一般財源")
   )
     return failure("議会費表の見出しまたは千円単位を確認できません");
-  const lines = text.split("\n");
-  const totalLines = lines.filter((line) => /^1議会費\d/.test(compact(line)));
-  const totals = totalLines.map((line) =>
-    parseFiscalInteger(
-      line.match(/^\s*1\s*議\s*会\s*費\s+([\d,]+)(?=\s|$)/)?.[1] ?? ""
-    )
-  );
+  const councilTotals = text
+    .split("\n")
+    .filter((line) => /^1議会費\d/.test(compact(line)))
+    .flatMap((line) => {
+      const amountText = COUNCIL_TOTAL_PATTERN.exec(line)?.[1];
+      const amount = amountText ? parseFiscalInteger(amountText) : null;
+      return amountText && amount !== null ? [{ amountText, amount }] : [];
+    });
+  const [councilTotal] = councilTotals;
   if (
-    totals.length !== 3 ||
-    totals[0] === null ||
-    totals.some((value) => value !== totals[0])
+    councilTotals.length !== 3 ||
+    !councilTotal ||
+    councilTotals.some((entry) => entry.amount !== councilTotal.amount)
   )
     return failure("議会費の款・項・目の合計が一致しません");
-  const read = (label: string) => {
-    const pattern = new RegExp(`^\\s*${[...label].join("\\s*")}\\s+(\\S+)`);
-    const matches = lines
-      .map((line) => line.match(pattern))
-      .filter((match) => match !== null);
-    return matches.length === 1 ? parseFiscalInteger(matches[0][1]) : null;
-  };
-  const general = read("○一般経費");
-  const project = read("○事業費");
-  const components = [
-    "人件費",
-    "物件費",
-    "報償費",
-    "委託料",
-    "負担金",
-    "交付金",
-  ].map((label) => read(`・${label}`));
+  const breakdown = parseCouncilExpenseBreakdown(text);
   if (
-    general === null ||
-    project === null ||
-    components.some((value) => value === null) ||
-    components.reduce<bigint>((sum, value) => sum + (value ?? 0n), 0n) !==
-      general ||
-    general + project !== totals[0] ||
-    read("・議会活性化推進事業費") !== project
+    !breakdown ||
+    breakdown.general + breakdown.project !== councilTotal.amount
   )
     return failure("議会費の一般経費・事業費と内訳合計が一致しません");
-  const sourceValueText = totalLines[0].match(
-    /^\s*1\s*議\s*会\s*費\s+([\d,]+)(?=\s|$)/
-  )?.[1];
-  if (!sourceValueText) return failure("議会費の原金額を確認できません");
   const record = amountRecord({
-    amount: totals[0],
-    sourceValueText,
+    fiscalYear,
+    amount: councilTotal.amount,
+    sourceValueText: councilTotal.amountText,
     page: 1,
     classification: {
       label: "議会費",
@@ -355,15 +426,14 @@ export function parseCouncilBudget2026(text: string): FiscalParserResult {
     records: [record],
     validationSummary: [
       {
-        ruleCode: "budget_2026_council_totals_passed",
+        ruleCode: "council_budget_totals_passed",
         severity: "info",
-        message: "議会費の款・項・目、一般経費6項目と事業費を突合しました",
+        message: `議会費の款・項・目、一般経費${breakdown.generalItemCount}費目と事業費${breakdown.projectItemCount}件を突合しました`,
       },
       {
-        ruleCode: "budget_2026_year_from_profile",
+        ruleCode: "council_budget_year_from_profile",
         severity: "warning",
-        message:
-          "年度印字のない詳細PDFです。令和8年度の公式URLを固定したprofileに基づき、公開前に一般会計比較表との照合が必要です",
+        message: `年度印字のない詳細PDFです。${fiscalYearLabel}の公式URLを固定したprofileに基づき、公開前に一般会計比較表との照合が必要です`,
       },
     ],
   };

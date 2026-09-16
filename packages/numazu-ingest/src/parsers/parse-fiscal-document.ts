@@ -1,26 +1,29 @@
 import type { FiscalSourceProfile } from "../shared/fiscal-source-profiles";
+import { normalizeMisencodedPdfAscii } from "../shared/utils/normalize-misencoded-pdf-ascii";
 import type { FiscalParserResult } from "./fiscal-parser-types";
 import {
-  parseCouncilBudget2026,
-  parseGeneralBudget2026,
-} from "./parse-budget-overview-2026";
-import { parseMajorMeasures2024 } from "./parse-major-measures-2024";
-import { parseSettlementOverview2024 } from "./parse-settlement-overview-2024";
+  parseCouncilBudget,
+  parseGeneralBudget,
+} from "./parse-budget-overview";
+import { parseMajorMeasures } from "./parse-major-measures";
+import { parseSettlementOverview } from "./parse-settlement-overview";
 
 export function parseFiscalDocument(params: {
   profile: FiscalSourceProfile;
   text: string;
 }): FiscalParserResult {
+  const text = normalizeMisencodedPdfAscii(params.text);
+  const fiscalYear = params.profile.fiscalYear;
   switch (params.profile.parserKind) {
     case "general_budget_2026":
-      return parseGeneralBudget2026(params.text);
+      return parseGeneralBudget(text, fiscalYear);
     case "council_budget_2026":
-      return parseCouncilBudget2026(params.text);
+      return parseCouncilBudget(text, fiscalYear);
     case "metadata_only":
       return { records: [], validationSummary: [] };
     case "settlement_overview_2024":
-      return parseSettlementOverview2024(params.text);
+      return parseSettlementOverview(text, fiscalYear);
     case "major_measures_2024":
-      return parseMajorMeasures2024(params.text);
+      return parseMajorMeasures(text, fiscalYear);
   }
 }

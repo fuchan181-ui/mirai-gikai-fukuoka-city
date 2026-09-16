@@ -1,5 +1,9 @@
 import { EXPENDITURE_PURPOSE_CLASSIFICATIONS } from "../shared/fiscal-classifications";
 import {
+  formatFiscalYearLabel,
+  includesFiscalYearLabel,
+} from "../shared/utils/fiscal-year-label";
+import {
   calculateRoundedPercent,
   convertFiscalAmountToYen,
   parseFiscalInteger,
@@ -9,14 +13,10 @@ import {
   type FiscalParserResult,
 } from "./fiscal-parser-types";
 
-const FISCAL_YEAR = 2024;
+import { stripFiscalWhitespace } from "../shared/utils/compact-fiscal-text";
 
 /** 歳出表の1行が持つセル数。当初予算額・構成比・予算現額・構成比・決算額・構成比・執行率。 */
 const EXPENDITURE_COLUMN_COUNT = 7;
-
-function compact(value: string): string {
-  return value.replace(/\s/g, "");
-}
 
 function numericCells(line: string): string[] {
   return line.match(/[△▲-]?\d[\d,]*(?:\.\d+)?/g) ?? [];
@@ -53,14 +53,14 @@ type ExpenditureTable = {
 
 function findRelevantPages(pages: string[]): RelevantPages | null {
   const budgetPageIndex = pages.findIndex((page) => {
-    const normalized = compact(page);
+    const normalized = stripFiscalWhitespace(page);
     return (
       normalized.includes("一般会計の当初予算規模") &&
       normalized.includes("最終予算額")
     );
   });
   const expenditurePageIndex = pages.findIndex((page) => {
-    const normalized = compact(page);
+    const normalized = stripFiscalWhitespace(page);
     return (
       normalized.includes("当初予算額予算現額決算額") &&
       normalized.includes("１議会費") &&
@@ -76,7 +76,7 @@ function parseBudgetControlTotals(page: string): {
   initial: bigint | null;
   current: bigint | null;
 } {
-  const normalized = compact(page);
+  const normalized = stripFiscalWhitespace(page);
   const initialSource = normalized.match(
     /一般会計の当初予算規模は([\d,]+)千円/
   )?.[1];
@@ -111,7 +111,7 @@ function parseExpenditureRow(
   if (!labelSource) return null;
   return {
     index,
-    label: compact(labelSource),
+    label: stripFiscalWhitespace(labelSource),
     cells: numericCells(rest.slice(labelSource.length)),
   };
 }
@@ -124,7 +124,9 @@ type ExpenditureTableResult =
 
 function parseExpenditureTable(page: string): ExpenditureTableResult {
   const lines = page.split("\n");
-  const totalLine = lines.find((line) => compact(line).startsWith("計"));
+  const totalLine = lines.find((line) =>
+    stripFiscalWhitespace(line).startsWith("計")
+  );
   const totalCells = totalLine ? numericCells(totalLine) : [];
   if (totalCells.length !== EXPENDITURE_COLUMN_COUNT) {
     return { status: "columns_changed" };
@@ -181,11 +183,19 @@ function parseExpenditureTable(page: string): ExpenditureTableResult {
   };
 }
 
-export function parseMajorMeasures2024(text: string): FiscalParserResult {
+/**
+ * 市政報告書 第1章財政から一般会計の予算・決算を読む。
+ * 表の列構成と款の並びは年度で変わらないため、年度はprofileから受け取って照合する。
+ */
+export function parseMajorMeasures(
+  text: string,
+  fiscalYear: number
+): FiscalParserResult {
+  const fiscalYearLabel = formatFiscalYearLabel(fiscalYear);
   const pages = text.split("\f");
-  const normalizedText = compact(text);
+  const normalizedText = stripFiscalWhitespace(text);
   if (
-    !normalizedText.includes("令和６年度") ||
+    !includesFiscalYearLabel(text, fiscalYear) ||
     !normalizedText.includes("第１章財政")
   ) {
     return {
@@ -194,7 +204,7 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
         {
           ruleCode: "major_measures_document_identity_mismatch",
           severity: "hard_error",
-          message: "令和6年度市政報告書の第1章財政を確認できませんでした",
+          message: `${fiscalYearLabel}市政報告書の第1章財政を確認できませんでした`,
         },
       ],
     };
@@ -353,7 +363,7 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
     classification?: { key: string; label: string };
   }) =>
     buildFiscalAmountRecord({
-      fiscalYear: FISCAL_YEAR,
+      fiscalYear,
       eventKind: params.eventKind,
       decisionStage: params.decisionStage,
       measure: params.measure,
@@ -364,7 +374,7 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
       sourcePage,
       sourceTable: "一般会計 歳出",
       ...(params.eventKind === "available_budget_snapshot"
-        ? { asOfDate: "2025-03-31" }
+        ? { asOfDate: `${fiscalYear + 1}-03-31` }
         : {}),
       ...(params.classification
         ? {

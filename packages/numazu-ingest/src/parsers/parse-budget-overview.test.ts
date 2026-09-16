@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { fiscalSourceProfiles } from "../shared/fiscal-source-profiles";
+import { findFiscalSourceProfile } from "../shared/fiscal-source-profiles";
 import {
-  parseCouncilBudget2026,
-  parseGeneralBudget2026,
-} from "./parse-budget-overview-2026";
+  parseCouncilBudget,
+  parseGeneralBudget,
+} from "./parse-budget-overview";
 import { parseFiscalDocument } from "./parse-fiscal-document";
 
 const general = readFileSync(
@@ -13,6 +13,16 @@ const general = readFileSync(
 );
 const council = readFileSync(
   new URL("./__fixtures__/budget-2026-council.txt", import.meta.url),
+  "utf8"
+);
+/** 令和6年度は数字と記号がCJK統合漢字拡張Aへ誤写像された状態で出力される。 */
+const misencodedGeneral = readFileSync(
+  new URL("./__fixtures__/budget-2024-general.txt", import.meta.url),
+  "utf8"
+);
+/** 令和5年度の議会費は事業費が2費目あり、費目名に数字を含む。 */
+const council2023 = readFileSync(
+  new URL("./__fixtures__/budget-2023-council.txt", import.meta.url),
   "utf8"
 );
 
@@ -70,28 +80,29 @@ function sumYen(
 describe("令和8年度予算概要", () => {
   it("原金額表記と公表指標を保持する", () => {
     expect(
-      parseGeneralBudget2026(general).records[2]?.parsedPayload
+      parseGeneralBudget(general, 2026).records[2]?.parsedPayload
     ).toMatchObject({
       sourceValueText: "469,887",
       publishedMetrics: { compositionRatio: "0.5", changeRate: "2.2" },
     });
     expect(
-      parseCouncilBudget2026(council).records[0]?.parsedPayload.sourceValueText
+      parseCouncilBudget(council, 2026).records[0]?.parsedPayload
+        .sourceValueText
     ).toBe("469,887");
   });
   it("ページ追加を誤った出典ページで受け入れない", () => {
-    expect(parseGeneralBudget2026(`\f${general}`).records).toEqual([]);
-    expect(parseCouncilBudget2026(`表紙\f${council}`).records).toEqual([]);
+    expect(parseGeneralBudget(`\f${general}`, 2026).records).toEqual([]);
+    expect(parseCouncilBudget(`表紙\f${council}`, 2026).records).toEqual([]);
   });
   it("行内差額が正しくても款別集計または歳入歳出が一致しなければ拒否する", () => {
     const taxChanged = general
       .replace("35,500,000", "35,500,001")
       .replace("200,000 千円", "200,001 千円");
-    expect(parseGeneralBudget2026(taxChanged).records).toEqual([]);
+    expect(parseGeneralBudget(taxChanged, 2026).records).toEqual([]);
     const revenueChanged = taxChanged
       .replace("95,650,000", "95,650,001")
       .replace(/50,000(\s+0\.1)/, "50,001$1");
-    expect(parseGeneralBudget2026(revenueChanged).records).toEqual([]);
+    expect(parseGeneralBudget(revenueChanged, 2026).records).toEqual([]);
   });
   it.each([
     general.replace("35,500,000 千円", "35,500,000 123 千円"),
@@ -100,13 +111,14 @@ describe("令和8年度予算概要", () => {
     general.replace(/^.*35,500,000.*\n/m, ""),
   ])("数値列・款の追加や欠落を拒否する", (changed) => {
     expect(changed).not.toBe(general);
-    expect(parseGeneralBudget2026(changed).records).toEqual([]);
+    expect(parseGeneralBudget(changed, 2026).records).toEqual([]);
   });
   it("歳入23款・歳出13款を款別内訳として提案候補に展開する", () => {
-    const result = parseFiscalDocument({
-      profile: fiscalSourceProfiles[0],
-      text: general,
-    });
+    const profile = findFiscalSourceProfile(
+      "budget-overview-2026-general-account"
+    );
+    if (!profile) throw new Error("test profile missing");
+    const result = parseFiscalDocument({ profile, text: general });
     expect(result.records).toHaveLength(38);
 
     const totals = result.records.slice(0, 2).map((row) => row.parsedPayload);
@@ -185,10 +197,11 @@ describe("令和8年度予算概要", () => {
     );
   });
   it("議会費の重複する階層を1件の比較根拠にする", () => {
-    const result = parseFiscalDocument({
-      profile: fiscalSourceProfiles[1],
-      text: council,
-    });
+    const profile = findFiscalSourceProfile(
+      "budget-overview-2026-council-expense"
+    );
+    if (!profile) throw new Error("test profile missing");
+    const result = parseFiscalDocument({ profile, text: council });
     expect(result.records).toHaveLength(1);
     expect(result.records[0]?.parsedPayload).toMatchObject({
       amountYen: "469887000",
@@ -197,7 +210,7 @@ describe("令和8年度予算概要", () => {
     });
     expect(result.validationSummary).toContainEqual(
       expect.objectContaining({
-        ruleCode: "budget_2026_year_from_profile",
+        ruleCode: "council_budget_year_from_profile",
         severity: "warning",
       })
     );
@@ -212,7 +225,7 @@ describe("令和8年度予算概要", () => {
   ])("一般会計の%s不整合をhard errorにする", (_name, from, to) => {
     const changed = general.replaceAll(from, to);
     expect(changed).not.toBe(general);
-    const result = parseGeneralBudget2026(changed);
+    const result = parseGeneralBudget(changed, 2026);
     expect(result.records).toEqual([]);
     expect(result.validationSummary[0]?.severity).toBe("hard_error");
   });
@@ -226,12 +239,80 @@ describe("令和8年度予算概要", () => {
   ])("議会費の%s不整合をhard errorにする", (_name, from, to) => {
     const changed = council.replace(from, to);
     expect(changed).not.toBe(council);
-    const result = parseCouncilBudget2026(changed);
+    const result = parseCouncilBudget(changed, 2026);
     expect(result.records).toEqual([]);
     expect(result.validationSummary[0]?.severity).toBe("hard_error");
   });
   it("異なる資料は受け付けない", () => {
-    expect(parseCouncilBudget2026(general).records).toEqual([]);
-    expect(parseGeneralBudget2026(council).records).toEqual([]);
+    expect(parseCouncilBudget(general, 2026).records).toEqual([]);
+    expect(parseGeneralBudget(council, 2026).records).toEqual([]);
+  });
+});
+
+describe("年度別の予算概要", () => {
+  it("令和6年度の誤写像PDFを解析前に補正して全款を抽出する", () => {
+    const profile = findFiscalSourceProfile(
+      "budget-overview-2024-general-account"
+    );
+    if (!profile) throw new Error("test profile missing");
+    const result = parseFiscalDocument({
+      profile,
+      text: misencodedGeneral,
+    });
+
+    expect(result.records).toHaveLength(38);
+    expect(result.records[0]?.parsedPayload).toMatchObject({
+      fiscalYear: 2024,
+      amountYen: "87960000000",
+      sourceValueText: "87,960,000",
+    });
+    expect(result.records[2]?.parsedPayload).toMatchObject({
+      classificationKey: "council_expense",
+      amountYen: "460162000",
+    });
+    expect(
+      result.records.every((row) => row.parsedPayload.fiscalYear === 2024)
+    ).toBe(true);
+    expect(result.validationSummary.every((v) => v.severity === "info")).toBe(
+      true
+    );
+  });
+  it("補正しない誤写像PDFは年度と款別表を確認できず失敗する", () => {
+    const result = parseGeneralBudget(misencodedGeneral, 2024);
+    expect(result.records).toEqual([]);
+    expect(result.validationSummary[0]).toMatchObject({
+      ruleCode: "budget_overview_validation_failed",
+      severity: "hard_error",
+    });
+  });
+  it("profileの年度と資料の年度が違えば静かに誤読せず失敗する", () => {
+    expect(parseGeneralBudget(general, 2025).records).toEqual([]);
+    expect(parseGeneralBudget(misencodedGeneral, 2025).records).toEqual([]);
+  });
+  it("令和5年度の議会費は事業費2費目を突合して1件にする", () => {
+    const result = parseCouncilBudget(council2023, 2023);
+    expect(result.records).toHaveLength(1);
+    expect(result.records[0]?.parsedPayload).toMatchObject({
+      fiscalYear: 2023,
+      amountYen: "475299000",
+      sourceValueText: "475,299",
+      evidenceRole: "corroborating",
+    });
+    expect(result.validationSummary).toContainEqual(
+      expect.objectContaining({
+        ruleCode: "council_budget_totals_passed",
+        severity: "info",
+        message: expect.stringContaining("事業費2件"),
+      })
+    );
+  });
+  it("年度印字のない議会費はprofileの年度で候補にする", () => {
+    const profile = findFiscalSourceProfile(
+      "budget-overview-2023-council-expense"
+    );
+    if (!profile) throw new Error("test profile missing");
+    const result = parseFiscalDocument({ profile, text: council2023 });
+    expect(result.records[0]?.parsedPayload.fiscalYear).toBe(2023);
+    expect(result.records[0]?.parsedPayload.amountYen).toBe("475299000");
   });
 });

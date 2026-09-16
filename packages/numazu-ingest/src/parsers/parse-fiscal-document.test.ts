@@ -37,7 +37,8 @@ describe("parseFiscalDocument", () => {
       text: `令和６年度 沼津市一般会計等の決算の概要
 １ 一般会計
 歳入 965 億 2,046 万 6 千円（前年度比）
-歳出 927 億 3,656 万 9 千円（前年度比）`,
+歳出 927 億 3,656 万 9 千円（前年度比）
+（１）歳入`,
     });
 
     expect(result.records).toHaveLength(2);

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseMajorMeasures2024 } from "./parse-major-measures-2024";
+import { parseMajorMeasures } from "./parse-major-measures";
 
 const fixture = readFileSync(
   new URL(
@@ -181,16 +181,16 @@ function expectedRecordSummaries() {
   ];
 }
 
-describe("parseMajorMeasures2024", () => {
+describe("parseMajorMeasures", () => {
   it("一般会計と13款の当初予算・予算現額・決算を公式表の順に抽出する", () => {
-    const result = parseMajorMeasures2024(fixture);
+    const result = parseMajorMeasures(fixture, 2024);
 
     expect(result.records).toHaveLength(42);
     expect(result.records.map(toSummary)).toEqual(expectedRecordSummaries());
   });
 
   it("13款すべての公表執行率と円単位の再計算が一致する", () => {
-    const result = parseMajorMeasures2024(fixture);
+    const result = parseMajorMeasures(fixture, 2024);
 
     for (const row of [
       ...EXPENDITURE_ROWS.map((entry) => ({
@@ -223,7 +223,7 @@ describe("parseMajorMeasures2024", () => {
   });
 
   it("公表執行率と円単位の再計算が不一致ならhard errorにする", () => {
-    const result = parseMajorMeasures2024(fixture.replace("96.8", "96.7"));
+    const result = parseMajorMeasures(fixture.replace("96.8", "96.7"), 2024);
 
     expect(result.records).toHaveLength(42);
     expect(result.validationSummary).toContainEqual(
@@ -236,8 +236,9 @@ describe("parseMajorMeasures2024", () => {
   });
 
   it("予算推移の本文と歳出表合計が不一致ならhard errorにする", () => {
-    const result = parseMajorMeasures2024(
-      fixture.replace("87,960,000 千円", "87,960,001 千円")
+    const result = parseMajorMeasures(
+      fixture.replace("87,960,000 千円", "87,960,001 千円"),
+      2024
     );
 
     expect(result.records).toHaveLength(42);
@@ -252,7 +253,7 @@ describe("parseMajorMeasures2024", () => {
   it("款別の合計と総計が不一致ならhard errorにする", () => {
     const changed = fixture.replace("449,516,456", "449,516,457");
     expect(changed).not.toBe(fixture);
-    const result = parseMajorMeasures2024(changed);
+    const result = parseMajorMeasures(changed, 2024);
 
     expect(result.records).toHaveLength(42);
     expect(result.validationSummary).toContainEqual(
@@ -269,7 +270,7 @@ describe("parseMajorMeasures2024", () => {
       "８ 土        木   費X"
     );
     expect(changed).not.toBe(fixture);
-    const result = parseMajorMeasures2024(changed);
+    const result = parseMajorMeasures(changed, 2024);
 
     expect(result.records).toEqual([]);
     expect(result.validationSummary).toContainEqual(
@@ -283,7 +284,7 @@ describe("parseMajorMeasures2024", () => {
   it("歳出表の列数が変わった場合は値を返さず失敗する", () => {
     const changed = fixture.replace(/^\s*計\s.*$/m, "");
     expect(changed).not.toBe(fixture);
-    const result = parseMajorMeasures2024(changed);
+    const result = parseMajorMeasures(changed, 2024);
 
     expect(result.records).toEqual([]);
     expect(result.validationSummary).toContainEqual(
@@ -297,7 +298,7 @@ describe("parseMajorMeasures2024", () => {
   it("金額セルを整数化できない場合は値を返さず失敗する", () => {
     const changed = fixture.replace("460,162,000", "460,162,00");
     expect(changed).not.toBe(fixture);
-    const result = parseMajorMeasures2024(changed);
+    const result = parseMajorMeasures(changed, 2024);
 
     expect(result.records).toEqual([]);
     expect(result.validationSummary).toContainEqual(
@@ -311,7 +312,7 @@ describe("parseMajorMeasures2024", () => {
   it("列見出しが変わった場合は静かに誤読せず失敗する", () => {
     const changed = fixture.replace("当初予算額", "変更された列");
     expect(changed).not.toBe(fixture);
-    const result = parseMajorMeasures2024(changed);
+    const result = parseMajorMeasures(changed, 2024);
 
     expect(result.records).toEqual([]);
     expect(result.validationSummary).toContainEqual(
@@ -323,8 +324,9 @@ describe("parseMajorMeasures2024", () => {
   });
 
   it("対象年度が変わった場合は値を返さず失敗する", () => {
-    const result = parseMajorMeasures2024(
-      fixture.replace("令和６年度", "令和７年度")
+    const result = parseMajorMeasures(
+      fixture.replace("令和６年度", "令和７年度"),
+      2024
     );
 
     expect(result.records).toEqual([]);
@@ -339,6 +341,6 @@ describe("parseMajorMeasures2024", () => {
   it("年度見出しに空白が入っても対象資料として処理する", () => {
     const changed = fixture.replace("令和６年度", "令和 ６ 年度");
 
-    expect(parseMajorMeasures2024(changed).records).toHaveLength(42);
+    expect(parseMajorMeasures(changed, 2024).records).toHaveLength(42);
   });
 });
