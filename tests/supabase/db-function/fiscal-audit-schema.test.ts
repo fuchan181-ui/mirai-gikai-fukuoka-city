@@ -289,7 +289,8 @@ describe("財政coverage・分類監査schema", () => {
           event_kind, decision_stage, source_kind, may_be_primary,
           rationale, reviewed_by, reviewed_at
         ) values (
-          'initial_budget', 'proposed', 'budget_overview', true,
+          'available_budget_snapshot', 'not_applicable', 'budget_overview',
+          true,
           '予算概要は当初予算案の一次資料', gen_random_uuid(), now()
         );
         insert into public.fiscal_source_kind_event_rules (
@@ -318,7 +319,7 @@ describe("財政coverage・分類監査schema", () => {
             event_kind, decision_stage, source_kind, may_be_primary,
             rationale
           ) values (
-            'initial_budget', 'passed', 'budget_overview', true,
+            'settlement', 'not_applicable', 'execution_report', true,
             'レビュー情報不足'
           );
           raise exception 'unreviewed primary rule unexpectedly succeeded';

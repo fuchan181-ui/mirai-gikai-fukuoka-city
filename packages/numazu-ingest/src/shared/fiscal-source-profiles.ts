@@ -30,12 +30,19 @@ export type FiscalSourceProfile = {
 const PROFILE_VERSION = "1.0.0";
 const PARSER_VERSION = "1.0.0";
 
+/**
+ * 令和8年度一般会計の予算概要は、款別内訳を抽出するparserへ差し替えた。
+ * `prepareFiscalSource` は同じ parser 版の完了済み解析を再利用するため、
+ * 抽出結果が変わった profile だけ版を分けて再解析させる。
+ */
+const GENERAL_BUDGET_2026_PARSER_VERSION = "1.1.0";
+
 export const fiscalSourceProfiles = [
   {
     profileKey: "budget-overview-2026-general-account",
     profileVersion: PROFILE_VERSION,
     parserName: "numazu-fiscal-general-budget-2026",
-    parserVersion: PARSER_VERSION,
+    parserVersion: GENERAL_BUDGET_2026_PARSER_VERSION,
     sourceKind: "budget_overview",
     seriesCode: "budget-overview-general-account",
     fiscalYear: 2026,
