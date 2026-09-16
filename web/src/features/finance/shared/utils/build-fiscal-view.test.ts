@@ -33,6 +33,15 @@ function totalLine(amountYen: string, measure: FiscalMeasure) {
   };
 }
 
+function classificationLine(
+  classificationKey: string,
+  label: string,
+  measure: FiscalMeasure,
+  amountYen: string
+) {
+  return { classificationKey, label, measure, amountYen, nullReason: null };
+}
+
 describe("pickAmountSet", () => {
   it("可決後の金額セットを提案段階より優先する", () => {
     const proposed = amountSet({
@@ -291,6 +300,74 @@ describe("buildFiscalYearView", () => {
     expect(view.highlights).toHaveLength(1);
     expect(view.highlights[0].amountYen).toBeNull();
     expect(view.expenditureBudget?.items).toEqual([]);
+  });
+
+  it("令和6年度議会費の予算現額と決算から、公式公表値と同じ執行率 96.8% を組み立てる", () => {
+    const view = buildFiscalYearView(2024, [
+      amountSet({
+        id: "budget",
+        lines: [
+          classificationLine(
+            "council_expense",
+            "議会費",
+            "expenditure_budget",
+            "460162000"
+          ),
+          totalLine("87960000000", "expenditure_budget"),
+        ],
+      }),
+      amountSet({
+        id: "snapshot",
+        eventKind: "available_budget_snapshot",
+        decisionStage: "not_applicable",
+        asOfDate: "2025-03-31",
+        lines: [
+          classificationLine(
+            "council_expense",
+            "議会費",
+            "expenditure_budget",
+            "464149000"
+          ),
+          totalLine("106430416000", "expenditure_budget"),
+        ],
+      }),
+      amountSet({
+        id: "settlement",
+        eventKind: "settlement",
+        decisionStage: "not_applicable",
+        lines: [
+          classificationLine(
+            "council_expense",
+            "議会費",
+            "expenditure_actual",
+            "449516456"
+          ),
+          totalLine("92736569118", "expenditure_actual"),
+        ],
+      }),
+    ]);
+
+    const council = view.expenditureExecution?.rows.find(
+      (row) => row.classificationKey === "council_expense"
+    );
+    expect(council?.initialBudgetYen).toBe("460162000");
+    expect(council?.availableBudgetYen).toBe("464149000");
+    expect(council?.actualYen).toBe("449516456");
+    expect(council?.executionRatePercent).toBe(96.8);
+    expect(view.expenditureExecution?.totalExecutionRatePercent).toBe(87.1);
+  });
+
+  it("予算現額も決算も無い年度では、執行状況の節を作らない", () => {
+    const view = buildFiscalYearView(2026, [
+      amountSet({
+        id: "budget",
+        fiscalYear: 2026,
+        decisionStage: "proposed",
+        lines: [totalLine("1000", "expenditure_budget")],
+      }),
+    ]);
+
+    expect(view.expenditureExecution).toBeNull();
   });
 });
 

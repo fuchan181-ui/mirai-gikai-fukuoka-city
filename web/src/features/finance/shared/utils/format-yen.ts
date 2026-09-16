@@ -89,3 +89,15 @@ export function calculateSharePercent(
 export function formatSharePercent(percent: number | null): string {
   return percent === null ? "—" : `${percent.toFixed(1)}%`;
 }
+
+/**
+ * 執行率を小数第1位まで（四捨五入）で返す。0〜100 の数値。
+ * 分母は年度末の予算現額で、当初予算ではない。
+ * 予算現額が 0 のときは率を定義できないため null を返す。
+ */
+export function calculateExecutionRate(
+  actualYen: string,
+  availableBudgetYen: string
+): number | null {
+  return calculateSharePercent(actualYen, availableBudgetYen);
+}

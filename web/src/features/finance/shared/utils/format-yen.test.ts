@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateExecutionRate,
   calculateSharePercent,
   formatSharePercent,
   formatYenExact,
@@ -83,5 +84,23 @@ describe("formatSharePercent", () => {
   it("未算出は — と表示する", () => {
     expect(formatSharePercent(null)).toBe("—");
     expect(formatSharePercent(12.34)).toBe("12.3%");
+  });
+});
+
+describe("calculateExecutionRate", () => {
+  it("令和6年度議会費の予算現額と決算額から、公式公表値と同じ 96.8% を返す", () => {
+    expect(calculateExecutionRate("449516456", "464149000")).toBe(96.8);
+  });
+
+  it("令和6年度一般会計の合計でも公表値と同じ 87.1% を返す", () => {
+    expect(calculateExecutionRate("92736569118", "106430416000")).toBe(87.1);
+  });
+
+  it("支出が無い款は 0% として返す", () => {
+    expect(calculateExecutionRate("0", "82000000")).toBe(0);
+  });
+
+  it("予算現額が 0 のときは率を返さない", () => {
+    expect(calculateExecutionRate("100", "0")).toBeNull();
   });
 });

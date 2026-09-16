@@ -19,6 +19,7 @@ import {
   getPublishedFiscalYears,
 } from "../loaders/get-fiscal-years";
 import { FiscalBreakdownSection } from "./fiscal-breakdown-section";
+import { FiscalExecutionSection } from "./fiscal-execution-section";
 import { FiscalSourceList } from "./fiscal-source-list";
 import { FiscalStageBadge } from "./fiscal-stage-badge";
 import { FiscalTimeline } from "./fiscal-timeline";
@@ -88,6 +89,10 @@ export async function FiscalYearPage({ fiscalYear }: { fiscalYear: number }) {
         ) : null}
 
         <FiscalTimeline steps={view.timeline} />
+
+        {view.expenditureExecution ? (
+          <FiscalExecutionSection execution={view.expenditureExecution} />
+        ) : null}
 
         {view.expenditureBudget ? (
           <FiscalBreakdownSection
