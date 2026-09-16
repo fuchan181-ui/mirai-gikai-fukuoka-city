@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatFiscalYear,
   formatFiscalYearWithGregorian,
+  isFiscalYearEnd,
 } from "./format-fiscal-year";
 
 describe("formatFiscalYear", () => {
@@ -22,5 +23,13 @@ describe("formatFiscalYear", () => {
 describe("formatFiscalYearWithGregorian", () => {
   it("和暦と西暦を併記する", () => {
     expect(formatFiscalYearWithGregorian(2026)).toBe("令和8年度（2026年度）");
+  });
+});
+
+describe("isFiscalYearEnd", () => {
+  it("翌年3月31日だけを年度末として扱う", () => {
+    expect(isFiscalYearEnd("2025-03-31", 2024)).toBe(true);
+    expect(isFiscalYearEnd("2024-09-30", 2024)).toBe(false);
+    expect(isFiscalYearEnd(null, 2024)).toBe(false);
   });
 });

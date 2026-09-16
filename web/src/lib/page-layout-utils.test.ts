@@ -5,6 +5,7 @@ import {
   isInterviewPage,
   isInterviewSection,
   isMainPage,
+  isWidePage,
 } from "./page-layout-utils";
 
 describe("isMainPage", () => {
@@ -32,6 +33,28 @@ describe("isMainPage", () => {
   // 末尾スラッシュは Next 側で正規化されるため、素の一致だけを見る。
   it("returns false for the bills list page with a trailing slash", () => {
     expect(isMainPage("/bills/")).toBe(false);
+  });
+});
+
+describe("isWidePage", () => {
+  it("returns true for the finance top page", () => {
+    expect(isWidePage("/finance")).toBe(true);
+  });
+
+  it("returns true for a fiscal year page", () => {
+    expect(isWidePage("/finance/2024")).toBe(true);
+  });
+
+  // 幅を絞るページに紛れ込むと、行長が広がって読みにくくなる。
+  it("returns false for the pages that keep the reading width", () => {
+    expect(isWidePage("/")).toBe(false);
+    expect(isWidePage("/bills")).toBe(false);
+    expect(isWidePage("/bills/abc-123")).toBe(false);
+  });
+
+  // 前方一致で別のパスまで拾わない。
+  it("returns false for a path that only starts with the same letters", () => {
+    expect(isWidePage("/finances")).toBe(false);
   });
 });
 
