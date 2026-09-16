@@ -5,29 +5,7 @@ import type {
   FiscalEventKind,
   FiscalMeasure,
 } from "../types/fiscal-amount";
-import {
-  calculateSharePercent,
-  compareYen,
-  parseYen,
-  ZERO,
-} from "./format-yen";
-
-export type FiscalBreakdownItem = {
-  classificationKey: string;
-  label: string;
-  amountYen: string;
-  /** 合計に対する構成比（0〜100、小数第1位）。合計が 0 のときは null。 */
-  sharePercent: number | null;
-};
-
-export type FiscalBreakdown = {
-  totalYen: string | null;
-  /** 内訳として並べた款の合計。総額の一部しか取れていない年度を見分けるために持つ。 */
-  coveredYen: string;
-  items: FiscalBreakdownItem[];
-  /** まだ議決されていない案か、議決済みか。見出しの注記に使う。 */
-  decisionStage: FiscalDecisionStage;
-};
+import { parseYen } from "./format-yen";
 
 /** 金額セットに含まれる金額の種類。歳入と歳出が同じセットに同居できる。 */
 export function measuresOf(amountSet: FiscalAmountSet): FiscalMeasure[] {
@@ -44,57 +22,6 @@ export function totalLineOf(
       (line) => line.measure === measure && line.classificationKey === null
     ) ?? null
   );
-}
-
-/**
- * 金額セットのうち、指定した種類の金額を款別の内訳へ組み替える。
- * 合計行（classificationKey が null）は totalYen として分離し、内訳には含めない。
- * 金額が公開されていない行は、額を推測できないため内訳から外す。
- */
-export function buildBreakdown(
-  amountSet: FiscalAmountSet,
-  measure: FiscalMeasure
-): FiscalBreakdown {
-  const lines = amountSet.lines.filter((line) => line.measure === measure);
-  const totalYen = totalLineOf(amountSet, measure)?.amountYen ?? null;
-
-  const items = lines
-    .filter(
-      (
-        line
-      ): line is typeof line & {
-        classificationKey: string;
-        label: string;
-        amountYen: string;
-      } =>
-        line.classificationKey !== null &&
-        line.label !== null &&
-        line.amountYen !== null
-    )
-    .map((line) => ({
-      classificationKey: line.classificationKey,
-      label: line.label,
-      amountYen: line.amountYen,
-      sharePercent: totalYen
-        ? calculateSharePercent(line.amountYen, totalYen)
-        : null,
-    }))
-    .sort((a, b) => {
-      const byAmount = compareYen(b.amountYen, a.amountYen);
-      return byAmount !== 0 ? byAmount : a.label.localeCompare(b.label, "ja");
-    });
-
-  let coveredYen = ZERO;
-  for (const item of items) {
-    coveredYen += parseYen(item.amountYen);
-  }
-
-  return {
-    totalYen,
-    coveredYen: coveredYen.toString(),
-    items,
-    decisionStage: amountSet.decisionStage,
-  };
 }
 
 /**

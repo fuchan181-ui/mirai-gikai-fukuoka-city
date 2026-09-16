@@ -17,6 +17,18 @@ export function isMainPage(pathname: string): boolean {
   return false;
 }
 
+/**
+ * 幅を絞らず、画面の広さを使うページかどうかを判定
+ *
+ * 財政ページは款ごとの表や棒グラフを並べるため、列が折り返さないよう
+ * 本文に画面幅を使う。読み物としての行長は、各ページの見出し・本文側で
+ * `max-w-3xl` などを付けて調整する。
+ */
+export function isWidePage(pathname: string): boolean {
+  // 財政ページ（/finance, /finance/[年度]）
+  return pathname === "/finance" || pathname.startsWith("/finance/");
+}
+
 /** インタビューチャットページかどうかを判定 */
 export function isInterviewPage(pathname: string): boolean {
   // /bills/[id]/interview/chat

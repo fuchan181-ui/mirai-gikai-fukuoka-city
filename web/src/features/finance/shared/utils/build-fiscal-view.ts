@@ -5,17 +5,23 @@ import type {
   FiscalMeasure,
 } from "../types/fiscal-amount";
 import {
-  buildBreakdown,
+  buildFiscalComparison,
+  type FiscalComparison,
+  type FiscalComparisonKind,
+  type FiscalComparisonSources,
+  fiscalMeasurePairOf,
+} from "./build-fiscal-comparison";
+import {
+  buildFiscalPlainSummary,
+  type FiscalPlainSummary,
+} from "./build-fiscal-plain-summary";
+import {
   buildExpenditureTimeline,
-  type FiscalBreakdown,
   type FiscalTimelineStep,
   measuresOf,
   totalLineOf,
 } from "./build-fiscal-summary";
-import {
-  buildFiscalExecution,
-  type FiscalExecution,
-} from "./build-fiscal-execution";
+import { isFiscalYearEnd } from "./format-fiscal-year";
 
 /** 同じ種類・段階の金額セットが複数あるときは、議決を経た段階を優先する。 */
 const STAGE_PRIORITY: FiscalDecisionStage[] = [
@@ -73,17 +79,6 @@ function pickLatestByAsOfDate(
   return latest ?? null;
 }
 
-/**
- * 基準日が年度末（翌年3月31日）かどうか。会計年度は4月1日から翌年3月31日まで。
- * 年度末より前の基準日の額を「年度末の予算現額」と呼ぶと、事実と食い違う。
- */
-export function isFiscalYearEnd(
-  asOfDate: string | null,
-  fiscalYear: number
-): boolean {
-  return asOfDate === `${fiscalYear + 1}-03-31`;
-}
-
 /** 指定した種類の合計額。合計が未公開なら null。 */
 export function totalOf(
   amountSet: FiscalAmountSet | null,
@@ -110,11 +105,12 @@ export type FiscalYearView = {
   /** 予算から決算までの流れ。合計が無い段階も抜けを隠さず並べる。 */
   timeline: FiscalTimelineStep[];
   highlights: FiscalHighlight[];
-  revenueBudget: FiscalBreakdown | null;
-  expenditureBudget: FiscalBreakdown | null;
-  expenditureActual: FiscalBreakdown | null;
-  /** 年度末の予算現額と決算の款別の対応。どちらかが未公開なら null。 */
-  expenditureExecution: FiscalExecution | null;
+  /** 歳出の款別内訳。当初予算・予算現額・決算を1つの表で並べる。 */
+  expenditureComparison: FiscalComparison | null;
+  /** 歳入の款別内訳。同じく段階をまたいで並べる。 */
+  revenueComparison: FiscalComparison | null;
+  /** 表を読まなくても全体像が分かるようにする要点。 */
+  plainSummary: FiscalPlainSummary;
 };
 
 /**
@@ -144,6 +140,11 @@ export function buildFiscalYearHighlights(
     amountSets,
     "settlement",
     "expenditure_actual"
+  );
+  const revenueSettlementSet = pickAmountSet(
+    amountSets,
+    "settlement",
+    "revenue_actual"
   );
 
   const highlights: FiscalHighlight[] = [];
@@ -190,6 +191,16 @@ export function buildFiscalYearHighlights(
       decisionStage: settlementSet.decisionStage,
     });
   }
+  if (revenueSettlementSet) {
+    highlights.push({
+      key: "revenue-actual",
+      label: "歳入決算",
+      amountYen: totalOf(revenueSettlementSet, "revenue_actual"),
+      asOfDate: null,
+      note: "その年度に収入として受け入れた額です。",
+      decisionStage: revenueSettlementSet.decisionStage,
+    });
+  }
 
   return highlights;
 }
@@ -202,45 +213,47 @@ export function buildFiscalYearView(
   fiscalYear: number,
   amountSets: FiscalAmountSet[]
 ): FiscalYearView {
-  const revenueBudgetSet = pickAmountSet(
-    amountSets,
-    "initial_budget",
-    "revenue_budget"
+  const expenditureComparison = buildFiscalComparison(
+    "expenditure",
+    comparisonSources(amountSets, "expenditure")
   );
-  const expenditureBudgetSet = pickAmountSet(
-    amountSets,
-    "initial_budget",
-    "expenditure_budget"
-  );
-  const availableBudgetSet = pickAmountSet(
-    amountSets,
-    "available_budget_snapshot",
-    "expenditure_budget"
-  );
-  const settlementSet = pickAmountSet(
-    amountSets,
-    "settlement",
-    "expenditure_actual"
+  const revenueComparison = buildFiscalComparison(
+    "revenue",
+    comparisonSources(amountSets, "revenue")
   );
 
   return {
     fiscalYear,
     timeline: buildExpenditureTimeline(amountSets),
     highlights: buildFiscalYearHighlights(fiscalYear, amountSets),
-    revenueBudget: revenueBudgetSet
-      ? buildBreakdown(revenueBudgetSet, "revenue_budget")
-      : null,
-    expenditureBudget: expenditureBudgetSet
-      ? buildBreakdown(expenditureBudgetSet, "expenditure_budget")
-      : null,
-    expenditureActual: settlementSet
-      ? buildBreakdown(settlementSet, "expenditure_actual")
-      : null,
-    expenditureExecution: buildFiscalExecution(fiscalYear, {
-      initialBudgetSet: expenditureBudgetSet,
-      availableBudgetSet,
-      settlementSet,
+    expenditureComparison,
+    revenueComparison,
+    plainSummary: buildFiscalPlainSummary({
+      fiscalYear,
+      expenditure: expenditureComparison,
+      revenue: revenueComparison,
     }),
+  };
+}
+
+/**
+ * 段階ごとに、その種類の金額を持つセットを選ぶ。
+ * 歳入と歳出が別のセットで公開される年度でも取り違えないよう、
+ * 金額の種類まで指定して選ぶ。
+ */
+function comparisonSources(
+  amountSets: FiscalAmountSet[],
+  kind: FiscalComparisonKind
+): FiscalComparisonSources {
+  const { budget, actual } = fiscalMeasurePairOf(kind);
+  return {
+    initialBudgetSet: pickAmountSet(amountSets, "initial_budget", budget),
+    availableBudgetSet: pickAmountSet(
+      amountSets,
+      "available_budget_snapshot",
+      budget
+    ),
+    settlementSet: pickAmountSet(amountSets, "settlement", actual),
   };
 }
 
@@ -255,17 +268,4 @@ function initialBudgetNote(
   return decisionStage === "proposed"
     ? `その年度の当初予算として提案されている案に計上された${subject}の合計です。まだ議会で議決されていません。`
     : `その年度の当初予算として議決された${subject}の合計です。`;
-}
-
-/**
- * 当初予算の内訳を説明する文。合計と同じく、議決段階で言い分ける。
- * purpose には「何にいくら使う」のような、内訳が示す内容を渡す。
- */
-export function initialBudgetBreakdownDescription(
-  decisionStage: FiscalDecisionStage,
-  purpose: string
-): string {
-  return decisionStage === "proposed"
-    ? `その年度の当初予算として提案されている案で、${purpose}としているかの内訳です。まだ議会で議決されていません。`
-    : `その年度の当初予算で、${purpose}と決めたかの内訳です。`;
 }

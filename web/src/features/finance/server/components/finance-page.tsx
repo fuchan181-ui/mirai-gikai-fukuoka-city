@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Container } from "@/components/layouts/container";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { routes } from "@/lib/routes";
-import { buildFiscalYearHighlights } from "../../shared/utils/build-fiscal-view";
+import { buildFiscalYearView } from "../../shared/utils/build-fiscal-view";
+import { largestShareSentence } from "../../shared/utils/fiscal-comparison-display";
 import { formatFiscalYearWithGregorian } from "../../shared/utils/format-fiscal-year";
 import { formatYenWithUnits } from "../../shared/utils/format-yen";
 import {
@@ -19,22 +20,32 @@ import { FiscalStageBadge } from "./fiscal-stage-badge";
  */
 export async function FinancePage() {
   const years = await getPublishedFiscalYears();
-  const yearHighlights = await Promise.all(
+  const yearPreviews = await Promise.all(
     years.map(async (year) => {
-      // 一覧では出典も内訳も出さないため、資料まで読み込まない。
+      // 一覧では出典も品目ごとの表も出さないため、資料まで読み込まない。
       const { amountSets } = await getPublishedFiscalYearAmounts(year, {
         includeSources: false,
       });
+      const view = buildFiscalYearView(year, amountSets);
+      const comparison = view.expenditureComparison;
       return {
         fiscalYear: year,
-        highlights: buildFiscalYearHighlights(year, amountSets),
+        highlights: view.highlights,
+        // 一覧でも「何にいちばん使っているか」が分かるようにする。
+        // 内訳が一部しか無い年度は、全体の1位と言い切らない文が返る。
+        largestExpenditureSentence: comparison
+          ? largestShareSentence(comparison)
+          : null,
       };
     })
   );
 
   return (
     <div className="min-h-dvh bg-mirai-surface-muted">
-      <Container className="flex flex-col gap-8 pb-10 pt-24 md:pt-8">
+      <Container
+        size="wide"
+        className="flex flex-col gap-8 pb-10 pt-24 md:pt-8"
+      >
         <header className="space-y-2">
           <h1 className="text-3xl font-bold text-mirai-text">
             予算とその使われ方
@@ -47,7 +58,7 @@ export async function FinancePage() {
           </p>
         </header>
 
-        {yearHighlights.length === 0 ? (
+        {yearPreviews.length === 0 ? (
           <p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground shadow">
             公開できる財政データはまだありません。
           </p>
@@ -60,7 +71,7 @@ export async function FinancePage() {
               年度から見る
             </h2>
             <ul className="space-y-3">
-              {yearHighlights.map((entry) => (
+              {yearPreviews.map((entry) => (
                 <li key={entry.fiscalYear}>
                   <Link
                     href={routes.financeYear(entry.fiscalYear)}
@@ -98,6 +109,11 @@ export async function FinancePage() {
                         ))}
                       </dl>
                     )}
+                    {entry.largestExpenditureSentence ? (
+                      <p className="mt-3 text-sm leading-relaxed text-mirai-text-note">
+                        {entry.largestExpenditureSentence}
+                      </p>
+                    ) : null}
                   </Link>
                 </li>
               ))}

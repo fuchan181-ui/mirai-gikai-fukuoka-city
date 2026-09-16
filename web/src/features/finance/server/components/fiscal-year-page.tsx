@@ -5,10 +5,7 @@ import { Container } from "@/components/layouts/container";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { routes } from "@/lib/routes";
 import { formatDateWithDots } from "@/lib/utils/date";
-import {
-  buildFiscalYearView,
-  initialBudgetBreakdownDescription,
-} from "../../shared/utils/build-fiscal-view";
+import { buildFiscalYearView } from "../../shared/utils/build-fiscal-view";
 import {
   formatFiscalYear,
   formatFiscalYearWithGregorian,
@@ -18,8 +15,8 @@ import {
   getPublishedFiscalYearAmounts,
   getPublishedFiscalYears,
 } from "../loaders/get-fiscal-years";
-import { FiscalBreakdownSection } from "./fiscal-breakdown-section";
-import { FiscalExecutionSection } from "./fiscal-execution-section";
+import { FiscalComparisonSection } from "./fiscal-comparison-section";
+import { FiscalPlainSummarySection } from "./fiscal-plain-summary";
 import { FiscalSourceList } from "./fiscal-source-list";
 import { FiscalStageBadge } from "./fiscal-stage-badge";
 import { FiscalTimeline } from "./fiscal-timeline";
@@ -36,7 +33,10 @@ export async function FiscalYearPage({ fiscalYear }: { fiscalYear: number }) {
 
   return (
     <div className="min-h-dvh bg-mirai-surface-muted">
-      <Container className="flex flex-col gap-8 pb-10 pt-24 md:pt-8">
+      <Container
+        size="wide"
+        className="flex flex-col gap-8 pb-10 pt-24 md:pt-8"
+      >
         <header className="space-y-2">
           <h1 className="text-3xl font-bold text-mirai-text">
             {formatFiscalYearWithGregorian(fiscalYear)}の予算と決算
@@ -57,7 +57,7 @@ export async function FiscalYearPage({ fiscalYear }: { fiscalYear: number }) {
             >
               この年度の主な金額
             </h2>
-            <ul className="grid gap-4 sm:grid-cols-2">
+            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {view.highlights.map((highlight) => (
                 <li
                   key={highlight.key}
@@ -88,47 +88,31 @@ export async function FiscalYearPage({ fiscalYear }: { fiscalYear: number }) {
           </section>
         ) : null}
 
-        <FiscalTimeline steps={view.timeline} />
+        <div
+          className={`grid gap-8 ${
+            view.plainSummary.sentences.length > 0 && view.timeline.length > 0
+              ? "xl:grid-cols-2 xl:items-start"
+              : ""
+          }`}
+        >
+          <FiscalPlainSummarySection summary={view.plainSummary} />
 
-        {view.expenditureExecution ? (
-          <FiscalExecutionSection execution={view.expenditureExecution} />
-        ) : null}
+          <FiscalTimeline steps={view.timeline} />
+        </div>
 
-        {view.expenditureBudget ? (
-          <FiscalBreakdownSection
-            sectionId="expenditure-budget"
-            title="歳出の内訳"
-            description={`${initialBudgetBreakdownDescription(
-              view.expenditureBudget.decisionStage,
-              "何にいくら使う"
-            )}款ごとに金額の大きい順に並べています。`}
-            breakdown={view.expenditureBudget}
-            amountCaption="歳出予算額"
-          />
-        ) : null}
+        <FiscalComparisonSection
+          sectionId="expenditure-comparison"
+          title="歳出の使い道"
+          undisclosedNote="この年度の歳出は、款ごとの内訳をまだ公開できていません。資料が取り込めた時点で追加します。"
+          comparison={view.expenditureComparison}
+        />
 
-        {view.revenueBudget ? (
-          <FiscalBreakdownSection
-            sectionId="revenue-budget"
-            title="歳入の内訳"
-            description={`${initialBudgetBreakdownDescription(
-              view.revenueBudget.decisionStage,
-              "何でまかなう"
-            )}市税や国・県からの支出金など、収入の種類ごとに示します。`}
-            breakdown={view.revenueBudget}
-            amountCaption="歳入予算額"
-          />
-        ) : null}
-
-        {view.expenditureActual ? (
-          <FiscalBreakdownSection
-            sectionId="expenditure-actual"
-            title="決算の内訳"
-            description="その年度に実際に支出が確定した額の内訳です。予算額ではなく、確定した額である点に注意してください。"
-            breakdown={view.expenditureActual}
-            amountCaption="歳出決算額"
-          />
-        ) : null}
+        <FiscalComparisonSection
+          sectionId="revenue-comparison"
+          title="歳入の内訳"
+          undisclosedNote="この年度の歳入は、種類ごとの内訳をまだ公開できていません。資料が取り込めた時点で追加します。"
+          comparison={view.revenueComparison}
+        />
 
         <FiscalSourceList sources={sources} />
 

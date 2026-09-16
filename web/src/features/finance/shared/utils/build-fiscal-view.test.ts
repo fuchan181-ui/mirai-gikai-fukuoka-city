@@ -3,8 +3,6 @@ import type { FiscalAmountSet, FiscalMeasure } from "../types/fiscal-amount";
 import {
   buildFiscalYearHighlights,
   buildFiscalYearView,
-  initialBudgetBreakdownDescription,
-  isFiscalYearEnd,
   pickAmountSet,
   totalOf,
 } from "./build-fiscal-view";
@@ -148,14 +146,6 @@ describe("pickAmountSet", () => {
   });
 });
 
-describe("isFiscalYearEnd", () => {
-  it("翌年3月31日だけを年度末として扱う", () => {
-    expect(isFiscalYearEnd("2025-03-31", 2024)).toBe(true);
-    expect(isFiscalYearEnd("2024-09-30", 2024)).toBe(false);
-    expect(isFiscalYearEnd(null, 2024)).toBe(false);
-  });
-});
-
 describe("totalOf", () => {
   it("合計行が無ければ null を返す", () => {
     expect(totalOf(null, "expenditure_budget")).toBeNull();
@@ -219,13 +209,16 @@ describe("buildFiscalYearView", () => {
         id: "budget",
         fiscalYear: 2026,
         decisionStage: "proposed",
-        lines: [totalLine("1000", "expenditure_budget")],
+        lines: [
+          classificationLine("welfare", "民生費", "expenditure_budget", "1000"),
+          totalLine("1000", "expenditure_budget"),
+        ],
       }),
     ]);
 
     expect(view.highlights[0].decisionStage).toBe("proposed");
     expect(view.highlights[0].note).toContain("議決されていません");
-    expect(view.expenditureBudget?.decisionStage).toBe("proposed");
+    expect(view.expenditureComparison?.decisionStage).toBe("proposed");
   });
 
   it("初期予算のセットに歳入と歳出が同居していても取り違えない", () => {
@@ -255,10 +248,10 @@ describe("buildFiscalYearView", () => {
       }),
     ]);
 
-    expect(view.revenueBudget?.items.map((item) => item.label)).toEqual([
+    expect(view.revenueComparison?.rows.map((row) => row.label)).toEqual([
       "市税",
     ]);
-    expect(view.expenditureBudget?.items.map((item) => item.label)).toEqual([
+    expect(view.expenditureComparison?.rows.map((row) => row.label)).toEqual([
       "民生費",
     ]);
     expect(view.timeline[0].amountYen).toBe("1200");
@@ -270,7 +263,10 @@ describe("buildFiscalYearView", () => {
         id: "budget",
         fiscalYear: 2026,
         decisionStage: "proposed",
-        lines: [totalLine("1000", "expenditure_budget")],
+        lines: [
+          classificationLine("welfare", "民生費", "expenditure_budget", "1000"),
+          totalLine("1000", "expenditure_budget"),
+        ],
       }),
     ]);
 
@@ -278,7 +274,7 @@ describe("buildFiscalYearView", () => {
     expect(
       view.highlights.some((highlight) => highlight.amountYen === "0")
     ).toBe(false);
-    expect(view.expenditureActual).toBeNull();
+    expect(view.expenditureComparison?.totals.settlement).toBeNull();
   });
 
   it("額が未公開の段階も、0円の内訳を作らず「未公開」として残す", () => {
@@ -299,7 +295,7 @@ describe("buildFiscalYearView", () => {
 
     expect(view.highlights).toHaveLength(1);
     expect(view.highlights[0].amountYen).toBeNull();
-    expect(view.expenditureBudget?.items).toEqual([]);
+    expect(view.expenditureComparison).toBeNull();
   });
 
   it("令和6年度議会費の予算現額と決算から、公式公表値と同じ執行率 96.8% を組み立てる", () => {
@@ -347,27 +343,34 @@ describe("buildFiscalYearView", () => {
       }),
     ]);
 
-    const council = view.expenditureExecution?.rows.find(
+    const council = view.expenditureComparison?.rows.find(
       (row) => row.classificationKey === "council_expense"
     );
-    expect(council?.initialBudgetYen).toBe("460162000");
-    expect(council?.availableBudgetYen).toBe("464149000");
-    expect(council?.actualYen).toBe("449516456");
-    expect(council?.executionRatePercent).toBe(96.8);
-    expect(view.expenditureExecution?.totalExecutionRatePercent).toBe(87.1);
+    expect(council?.amounts.initial_budget).toBe("460162000");
+    expect(council?.amounts.available_budget).toBe("464149000");
+    expect(council?.amounts.settlement).toBe("449516456");
+    expect(council?.progressPercent).toBe(96.8);
+    expect(view.expenditureComparison?.totalProgressPercent).toBe(87.1);
+    expect(council?.description).toContain("市議会");
+    expect(view.plainSummary.sentences[0]).toContain("執行率 87.1%");
   });
 
-  it("予算現額も決算も無い年度では、執行状況の節を作らない", () => {
+  it("予算現額も決算も無い年度では、執行率を算出しない", () => {
     const view = buildFiscalYearView(2026, [
       amountSet({
         id: "budget",
         fiscalYear: 2026,
         decisionStage: "proposed",
-        lines: [totalLine("1000", "expenditure_budget")],
+        lines: [
+          classificationLine("welfare", "民生費", "expenditure_budget", "800"),
+          totalLine("1000", "expenditure_budget"),
+        ],
       }),
     ]);
 
-    expect(view.expenditureExecution).toBeNull();
+    expect(view.expenditureComparison?.stages).toEqual(["initial_budget"]);
+    expect(view.expenditureComparison?.rows[0]?.progressPercent).toBeNull();
+    expect(view.expenditureComparison?.totalProgressPercent).toBeNull();
   });
 });
 
@@ -387,6 +390,25 @@ describe("buildFiscalYearHighlights", () => {
     expect(highlights[0].note).toContain("基準日時点");
   });
 
+  it("歳入の決算がある年度は、収入の合計も要点に出す", () => {
+    const highlights = buildFiscalYearHighlights(2024, [
+      amountSet({
+        id: "settlement",
+        eventKind: "settlement",
+        decisionStage: "not_applicable",
+        lines: [
+          totalLine("92736569118", "expenditure_actual"),
+          totalLine("96520466136", "revenue_actual"),
+        ],
+      }),
+    ]);
+
+    expect(highlights.map((highlight) => highlight.key)).toEqual([
+      "expenditure-actual",
+      "revenue-actual",
+    ]);
+  });
+
   it("年度末の基準日は年度末として示す", () => {
     const highlights = buildFiscalYearHighlights(2024, [
       amountSet({
@@ -400,27 +422,5 @@ describe("buildFiscalYearHighlights", () => {
 
     expect(highlights[0].label).toBe("年度末の予算現額");
     expect(highlights[0].note).toContain("年度末時点");
-  });
-});
-
-describe("initialBudgetBreakdownDescription", () => {
-  it("提案中は、まだ議決されていないと明記する", () => {
-    const description = initialBudgetBreakdownDescription(
-      "proposed",
-      "何にいくら使う"
-    );
-
-    expect(description).toContain("提案されている案");
-    expect(description).toContain("議決されていません");
-  });
-
-  it("可決後は、決めた額として説明する", () => {
-    const description = initialBudgetBreakdownDescription(
-      "passed",
-      "何にいくら使う"
-    );
-
-    expect(description).toContain("決めた");
-    expect(description).not.toContain("議決されていません");
   });
 });
