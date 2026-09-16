@@ -37,3 +37,7 @@ SOFTWARE.
 
 Generated from this project's public website by `pnpm og:screenshot`. Do not
 edit it manually.
+
+No scheduled workflow refreshes this file; re-run the command manually when
+the public site's top page changes. It captures `OG_SCREENSHOT_URL` when
+set, otherwise the default production URL.
