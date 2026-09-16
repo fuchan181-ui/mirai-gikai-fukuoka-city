@@ -17,8 +17,12 @@ export type FiscalParserResult = {
 export type FiscalAmountRecordParams = {
   fiscalYear: number;
   eventKind: "initial_budget" | "available_budget_snapshot" | "settlement";
-  decisionStage: "passed" | "not_applicable";
-  measure: "expenditure_budget" | "revenue_actual" | "expenditure_actual";
+  decisionStage: "proposed" | "passed" | "not_applicable";
+  measure:
+    | "revenue_budget"
+    | "expenditure_budget"
+    | "revenue_actual"
+    | "expenditure_actual";
   amountYen: bigint;
   sourceValueText: string;
   sourceValueNumeric: string;

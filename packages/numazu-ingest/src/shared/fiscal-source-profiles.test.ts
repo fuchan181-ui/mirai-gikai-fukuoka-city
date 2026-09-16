@@ -35,7 +35,7 @@ describe("fiscalSourceProfiles", () => {
     expect(
       findFiscalSourceProfile("budget-overview-2026-general-account")
         ?.parserKind
-    ).toBe("metadata_only");
+    ).toBe("general_budget_2026");
     expect(findFiscalSourceProfile("unknown")).toBeNull();
   });
 });

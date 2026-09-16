@@ -11,7 +11,10 @@ function requireProfile(profileKey: string) {
 describe("parseFiscalDocument", () => {
   it("metadata_only profileでは金額候補を作らない", () => {
     const result = parseFiscalDocument({
-      profile: requireProfile("budget-overview-2026-general-account"),
+      profile: {
+        ...requireProfile("budget-overview-2026-general-account"),
+        parserKind: "metadata_only",
+      },
       text: "令和8年度 一般会計",
     });
 
