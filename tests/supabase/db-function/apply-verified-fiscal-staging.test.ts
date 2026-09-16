@@ -526,6 +526,48 @@ describe("apply_verified_fiscal_staging()", () => {
     expect(output).toContain("ROLLBACK");
   });
 
+  it("service_roleの権限で承認・適用しても公開正本へ反映できる", () => {
+    // 本番の適用は service_role から呼ぶ。レジストリ整合トリガーは権限を
+    // 剥奪したビューを読むため、実行ロールの権限で動くと必ず失敗する。
+    // 遅延制約トリガーは commit 時まで発火しないので、明示的に即時化する。
+    const output = executeInTestDatabase(`
+      begin;
+      ${ingestionFixtureSql(PRIMARY)}
+      ${saveBatchSql(PRIMARY, [
+        documentMetadataRow(),
+        amountRow(),
+        amountRow({
+          sourceRecordKey: "amount:total",
+          payload: {
+            classificationKey: null,
+            sourceClassificationLabel: null,
+            classificationScheme: null,
+            amountYen: null,
+            nullReason: "not_published",
+          },
+        }),
+      ])}
+      set local role service_role;
+      ${verifyRecordsSql(PRIMARY)}
+      select ${approveCallSql(PRIMARY)};
+      do $block$
+      declare
+        v_result jsonb;
+      begin
+        select ${applyCallSql(PRIMARY)} into v_result;
+        if (v_result ->> 'amountCount')::integer <> 2 then
+          raise exception 'unexpected apply result %', v_result;
+        end if;
+      end;
+      $block$;
+      set constraints all immediate;
+      reset role;
+      rollback;
+    `);
+
+    expect(output).toContain("ROLLBACK");
+  });
+
   it("未承認のバッチと適用済みバッチの再適用を拒否する", () => {
     const output = executeInTestDatabase(`
       begin;
