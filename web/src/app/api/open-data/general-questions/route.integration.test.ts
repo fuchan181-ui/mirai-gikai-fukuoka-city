@@ -1,6 +1,7 @@
 import { executeInTestDatabase } from "@test-utils/db-function/ingestion-audit-test-database";
 import { publishedGeneralQuestionItemFixtureSql } from "@test-utils/db-function/policy-classification-test-fixture";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { GENERAL_QUESTIONS_ENABLED } from "@/features/general-questions/shared/constants";
 import { GET } from "./route";
 
 const fixtureAppearanceId = "00000000-0000-0000-0000-000000000201";
@@ -60,49 +61,58 @@ function request(query = "") {
 }
 
 describe("GET /api/open-data/general-questions", () => {
-  beforeAll(() => {
-    removeFixture();
-    executeInTestDatabase(publishedGeneralQuestionItemFixtureSql);
-  });
-
-  afterAll(removeFixture);
-
-  it("不正な年を400にする", async () => {
-    expect((await GET(request("?year=1989"))).status).toBe(400);
-  });
-
-  it("QA済み一覧をno-storeで返す", async () => {
-    const response = await GET(request());
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(response.headers.get("X-Content-Provenance")).toContain(
-      "ai-summaries-human-reviewed"
-    );
-    const body = await response.json();
-    expect(Array.isArray(body.items)).toBe(true);
-    expect(body.items).toContainEqual(
-      expect.objectContaining({
-        appearanceId: fixtureAppearanceId,
-        items: [
-          expect.objectContaining({
-            summary: "地域防災の取組",
-            summaryGenerationModel: "openai/gpt-5-mini",
-            summaryPromptVersion: "2026-09-04-v1",
-          }),
-        ],
-      })
-    );
-    expect(body.rights.sourceTermsUrl).toBe(
-      "https://www.city.numazu.shizuoka.jp/about/copyright.htm"
-    );
-  });
-
-  it("CSVをダウンロード形式で返す", async () => {
-    const response = await GET(request("?format=csv"));
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toContain("text/csv");
-    expect(response.headers.has("X-Next-Cursor")).toBe(true);
-    expect(response.headers.get("Link")).toContain('rel="terms-of-service"');
-    expect(await response.text()).toContain("appearance_id");
+  it.skipIf(GENERAL_QUESTIONS_ENABLED)("未リリース中は404を返す", async () => {
+    expect((await GET(request())).status).toBe(404);
   });
 });
+
+describe.skipIf(!GENERAL_QUESTIONS_ENABLED)(
+  "GET /api/open-data/general-questions (enabled)",
+  () => {
+    beforeAll(() => {
+      removeFixture();
+      executeInTestDatabase(publishedGeneralQuestionItemFixtureSql);
+    });
+
+    afterAll(removeFixture);
+
+    it("不正な年を400にする", async () => {
+      expect((await GET(request("?year=1989"))).status).toBe(400);
+    });
+
+    it("QA済み一覧をno-storeで返す", async () => {
+      const response = await GET(request());
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      expect(response.headers.get("X-Content-Provenance")).toContain(
+        "ai-summaries-human-reviewed"
+      );
+      const body = await response.json();
+      expect(Array.isArray(body.items)).toBe(true);
+      expect(body.items).toContainEqual(
+        expect.objectContaining({
+          appearanceId: fixtureAppearanceId,
+          items: [
+            expect.objectContaining({
+              summary: "地域防災の取組",
+              summaryGenerationModel: "openai/gpt-5-mini",
+              summaryPromptVersion: "2026-09-04-v1",
+            }),
+          ],
+        })
+      );
+      expect(body.rights.sourceTermsUrl).toBe(
+        "https://www.city.numazu.shizuoka.jp/about/copyright.htm"
+      );
+    });
+
+    it("CSVをダウンロード形式で返す", async () => {
+      const response = await GET(request("?format=csv"));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Content-Type")).toContain("text/csv");
+      expect(response.headers.has("X-Next-Cursor")).toBe(true);
+      expect(response.headers.get("Link")).toContain('rel="terms-of-service"');
+      expect(await response.text()).toContain("appearance_id");
+    });
+  }
+);

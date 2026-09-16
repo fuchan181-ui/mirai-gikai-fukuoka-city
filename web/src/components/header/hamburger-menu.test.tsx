@@ -32,7 +32,6 @@ describe("HamburgerMenu", () => {
       ["トップ", "/"],
       ["議案を検索する", "/bills"],
       ["定例会の一覧", "/gikai"],
-      ["一般質問を見る", "/questions"],
     ]);
     expect(screen.getByText("表示設定")).toBeInTheDocument();
     expect(screen.getByText("表示コントロール")).toBeInTheDocument();

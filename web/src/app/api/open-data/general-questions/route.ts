@@ -1,3 +1,4 @@
+import { GENERAL_QUESTIONS_ENABLED } from "@/features/general-questions/shared/constants";
 import {
   GENERAL_QUESTION_DATA_RIGHTS,
   generalQuestionsToCsv,
@@ -14,6 +15,10 @@ const RIGHTS_HEADERS = {
 };
 
 export async function GET(request: Request) {
+  if (!GENERAL_QUESTIONS_ENABLED) {
+    return jsonNoStore({ error: "Not Found" }, 404);
+  }
+
   const query = parseGeneralQuestionsQuery(new URL(request.url).searchParams);
   if (!query.ok) return jsonNoStore({ error: query.error }, 400);
   try {

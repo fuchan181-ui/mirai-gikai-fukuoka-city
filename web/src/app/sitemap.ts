@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getPublishedBillSitemapEntries } from "@/features/bills/server/loaders/get-published-bill-sitemap-entries";
 import { getGeneralQuestionSessions } from "@/features/general-questions/server/loaders/get-general-question-sessions";
+import { GENERAL_QUESTIONS_ENABLED } from "@/features/general-questions/shared/constants";
 import { env } from "@/lib/env";
 import { getPublicBaseUrl } from "@/lib/metadata/utils/get-public-base-url";
 import { routes } from "@/lib/routes";
@@ -12,7 +13,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const [bills, generalQuestionSessions] = await Promise.all([
     getPublishedBillSitemapEntries(),
-    getGeneralQuestionSessions(),
+    GENERAL_QUESTIONS_ENABLED
+      ? getGeneralQuestionSessions()
+      : Promise.resolve([]),
   ]);
   const now = new Date();
 
@@ -48,7 +51,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     ...[
       routes.gikaiSessions(),
-      routes.generalQuestions(),
+      ...(GENERAL_QUESTIONS_ENABLED ? [routes.generalQuestions()] : []),
       routes.developers(),
       routes.developersOpenDataApi(),
       routes.interviewDataTerms(),
