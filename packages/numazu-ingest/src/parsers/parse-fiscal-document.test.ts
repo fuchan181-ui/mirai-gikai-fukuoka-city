@@ -1,6 +1,16 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { findFiscalSourceProfile } from "../shared/fiscal-source-profiles";
 import { parseFiscalDocument } from "./parse-fiscal-document";
+
+/** 令和6年度市政報告書の実レイアウトを写したfixture。 */
+const majorMeasuresFixture = readFileSync(
+  new URL(
+    "./__fixtures__/fiscal-major-measures-2024-layout.txt",
+    import.meta.url
+  ),
+  "utf8"
+);
 
 function requireProfile(profileKey: string) {
   const profile = findFiscalSourceProfile(profileKey);
@@ -37,16 +47,17 @@ describe("parseFiscalDocument", () => {
   it("市政報告書profileを対応parserへ渡す", () => {
     const result = parseFiscalDocument({
       profile: requireProfile("major-measures-2024-fiscal"),
-      text: `令和６年度 市政報告書
-\f第１章 財政
-\f一般会計の当初予算規模は 87,960,000 千円
-最終予算額は 106,430,416 千円
-\f歳出 当初予算額 予算現額 決算額 執行率
-１ 議会費 460,162,000 0.5 464,149,000 0.4 449,516,456 0.5 96.8
-計 87,960,000,000 100.0 106,430,416,000 100.0 92,736,569,118 100.0 87.1`,
+      text: majorMeasuresFixture,
     });
 
-    expect(result.records).toHaveLength(6);
-    expect(result.records[5]?.parsedPayload.amountYen).toBe("449516456");
+    expect(result.records).toHaveLength(42);
+    expect(result.records[0]?.parsedPayload.classificationKey).toBe(
+      "council_expense"
+    );
+    expect(result.records[2]?.parsedPayload.amountYen).toBe("449516456");
+    expect(result.records[41]?.parsedPayload.measure).toBe(
+      "expenditure_actual"
+    );
+    expect(result.records[41]?.parsedPayload.amountYen).toBe("92736569118");
   });
 });

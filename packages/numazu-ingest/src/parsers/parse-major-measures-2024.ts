@@ -1,3 +1,4 @@
+import { EXPENDITURE_PURPOSE_CLASSIFICATIONS } from "../shared/fiscal-classifications";
 import {
   calculateRoundedPercent,
   convertFiscalAmountToYen,
@@ -9,6 +10,9 @@ import {
 } from "./fiscal-parser-types";
 
 const FISCAL_YEAR = 2024;
+
+/** 歳出表の1行が持つセル数。当初予算額・構成比・予算現額・構成比・決算額・構成比・執行率。 */
+const EXPENDITURE_COLUMN_COUNT = 7;
 
 function compact(value: string): string {
   return value.replace(/\s/g, "");
@@ -27,15 +31,24 @@ type RelevantPages = {
   expenditurePageIndex: number;
 };
 
+type ExpenditureRow = {
+  classificationKey: string;
+  label: string;
+  /** 当初予算額・構成比・予算現額・構成比・決算額・構成比・執行率の7セル。 */
+  cells: string[];
+  initial: bigint;
+  current: bigint;
+  actual: bigint;
+};
+
 type ExpenditureTable = {
-  councilCells: string[];
-  totalCells: string[];
-  generalInitial: bigint;
-  generalCurrent: bigint;
-  generalActual: bigint;
-  councilInitial: bigint;
-  councilCurrent: bigint;
-  councilActual: bigint;
+  rows: ExpenditureRow[];
+  total: {
+    cells: string[];
+    initial: bigint;
+    current: bigint;
+    actual: bigint;
+  };
 };
 
 function findRelevantPages(pages: string[]): RelevantPages | null {
@@ -78,53 +91,92 @@ function parseBudgetControlTotals(page: string): {
   };
 }
 
-function parseExpenditureTable(
-  page: string
-):
+/**
+ * 歳出表の款行を読む。先頭の款番号、数字を含まない款名、続く金額セルに分ける。
+ * 公式表の款名に数字は入らないため、最初の数字の手前までを款名として扱う。
+ * 番号の全角・半角は表によって変わるため、番号だけ正規化して比較する。
+ * 金額セルは空白で区切られているため、空白を除く前の行から取り出す。
+ * 空白を除いてから数字を拾うと、隣り合う金額が1つの数字に繋がる。
+ */
+function parseExpenditureRow(
+  line: string
+): { index: number; label: string; cells: string[] } | null {
+  const trimmed = line.replace(/^[\s　]+/, "");
+  const indexSource = trimmed.match(/^([0-9０-９]{1,2})/)?.[1];
+  if (!indexSource) return null;
+  const index = Number(indexSource.normalize("NFKC"));
+  if (!Number.isInteger(index)) return null;
+  const rest = trimmed.slice(indexSource.length);
+  const labelSource = rest.match(/^([^\d０-９]+)/)?.[1];
+  if (!labelSource) return null;
+  return {
+    index,
+    label: compact(labelSource),
+    cells: numericCells(rest.slice(labelSource.length)),
+  };
+}
+
+type ExpenditureTableResult =
   | { status: "columns_changed" }
+  | { status: "rows_changed" }
   | { status: "amount_invalid" }
-  | { status: "parsed"; table: ExpenditureTable } {
+  | { status: "parsed"; table: ExpenditureTable };
+
+function parseExpenditureTable(page: string): ExpenditureTableResult {
   const lines = page.split("\n");
-  const councilLine = lines.find((line) =>
-    compact(line).startsWith("１議会費")
-  );
   const totalLine = lines.find((line) => compact(line).startsWith("計"));
-  const councilCells = councilLine ? numericCells(councilLine) : [];
   const totalCells = totalLine ? numericCells(totalLine) : [];
-  if (councilCells.length !== 7 || totalCells.length !== 7) {
+  if (totalCells.length !== EXPENDITURE_COLUMN_COUNT) {
     return { status: "columns_changed" };
   }
 
-  const amounts = [
-    parseYenCell(totalCells[0]),
-    parseYenCell(totalCells[2]),
-    parseYenCell(totalCells[4]),
-    parseYenCell(councilCells[0]),
-    parseYenCell(councilCells[2]),
-    parseYenCell(councilCells[4]),
-  ];
-  if (amounts.some((amount) => amount === null)) {
+  // 款は公式表と同じ並び・表記で並ぶ。番号が合わない行や、款名が変わった行は
+  // 誤読を避けるため採用せず、そろわなければ表全体を失敗させる。
+  const rows: ExpenditureRow[] = [];
+  for (const line of lines) {
+    const parsed = parseExpenditureRow(line);
+    if (!parsed) continue;
+    const expected = EXPENDITURE_PURPOSE_CLASSIFICATIONS[parsed.index - 1];
+    if (!expected || expected.label !== parsed.label) continue;
+    if (parsed.cells.length !== EXPENDITURE_COLUMN_COUNT) {
+      return { status: "columns_changed" };
+    }
+    const initial = parseYenCell(parsed.cells[0]);
+    const current = parseYenCell(parsed.cells[2]);
+    const actual = parseYenCell(parsed.cells[4]);
+    if (initial === null || current === null || actual === null) {
+      return { status: "amount_invalid" };
+    }
+    rows.push({
+      classificationKey: expected.key,
+      label: expected.label,
+      cells: parsed.cells,
+      initial,
+      current,
+      actual,
+    });
+  }
+  if (rows.length !== EXPENDITURE_PURPOSE_CLASSIFICATIONS.length) {
+    return { status: "rows_changed" };
+  }
+
+  const totalInitial = parseYenCell(totalCells[0]);
+  const totalCurrent = parseYenCell(totalCells[2]);
+  const totalActual = parseYenCell(totalCells[4]);
+  if (totalInitial === null || totalCurrent === null || totalActual === null) {
     return { status: "amount_invalid" };
   }
-  const [
-    generalInitial,
-    generalCurrent,
-    generalActual,
-    councilInitial,
-    councilCurrent,
-    councilActual,
-  ] = amounts as bigint[];
+
   return {
     status: "parsed",
     table: {
-      councilCells,
-      totalCells,
-      generalInitial,
-      generalCurrent,
-      generalActual,
-      councilInitial,
-      councilCurrent,
-      councilActual,
+      rows,
+      total: {
+        cells: totalCells,
+        initial: totalInitial,
+        current: totalCurrent,
+        actual: totalActual,
+      },
     },
   };
 }
@@ -182,6 +234,19 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
     };
   }
 
+  if (parsedTable.status === "rows_changed") {
+    return {
+      records: [],
+      validationSummary: [
+        {
+          ruleCode: "major_measures_expenditure_rows_changed",
+          severity: "hard_error",
+          message: "一般会計歳出表の款の並び・名称が想定と一致しませんでした",
+        },
+      ],
+    };
+  }
+
   if (parsedTable.status === "amount_invalid") {
     return {
       records: [],
@@ -189,26 +254,17 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
         {
           ruleCode: "major_measures_amount_invalid",
           severity: "hard_error",
-          message: "一般会計または議会費の金額セルを整数化できませんでした",
+          message: "一般会計または款の金額セルを整数化できませんでした",
         },
       ],
     };
   }
-  const {
-    councilCells,
-    totalCells,
-    generalInitial,
-    generalCurrent,
-    generalActual,
-    councilInitial,
-    councilCurrent,
-    councilActual,
-  } = parsedTable.table;
+  const { rows, total } = parsedTable.table;
 
   const validationSummary: FiscalParserResult["validationSummary"] = [];
   if (
-    controlTotals.initial !== generalInitial ||
-    controlTotals.current !== generalCurrent
+    controlTotals.initial !== total.initial ||
+    controlTotals.current !== total.current
   ) {
     validationSummary.push({
       ruleCode: "major_measures_budget_control_total_mismatch",
@@ -216,21 +272,43 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
       message: "予算推移の本文と歳出表の一般会計合計が一致しません",
     });
   }
-  const generalRate = calculateRoundedPercent(generalActual, generalCurrent, 1);
-  const councilRate = calculateRoundedPercent(councilActual, councilCurrent, 1);
+  const rowTotalByColumn = {
+    initial: rows.reduce((sum, row) => sum + row.initial, 0n),
+    current: rows.reduce((sum, row) => sum + row.current, 0n),
+    actual: rows.reduce((sum, row) => sum + row.actual, 0n),
+  };
+  if (
+    rowTotalByColumn.initial !== total.initial ||
+    rowTotalByColumn.current !== total.current ||
+    rowTotalByColumn.actual !== total.actual
+  ) {
+    validationSummary.push({
+      ruleCode: "major_measures_expenditure_control_total_mismatch",
+      severity: "hard_error",
+      message: "歳出表の款別合計と一般会計合計が一致しません",
+    });
+  }
   const rateChecks = [
     {
       classificationKey: "total",
       label: "一般会計合計",
-      publishedMetricValue: totalCells[6],
-      calculatedMetricValue: generalRate,
+      publishedMetricValue: total.cells[6],
+      calculatedMetricValue: calculateRoundedPercent(
+        total.actual,
+        total.current,
+        1
+      ),
     },
-    {
-      classificationKey: "council_expense",
-      label: "議会費",
-      publishedMetricValue: councilCells[6],
-      calculatedMetricValue: councilRate,
-    },
+    ...rows.map((row) => ({
+      classificationKey: row.classificationKey,
+      label: row.label,
+      publishedMetricValue: row.cells[6],
+      calculatedMetricValue: calculateRoundedPercent(
+        row.actual,
+        row.current,
+        1
+      ),
+    })),
   ];
   for (const rate of rateChecks) {
     if (rate.calculatedMetricValue === rate.publishedMetricValue) {
@@ -261,7 +339,7 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
     validationSummary.push({
       ruleCode: "major_measures_control_totals_passed",
       severity: "info",
-      message: "一般会計合計と議会費の予算・決算・執行率を突合しました",
+      message: `一般会計合計と${rows.length}款の予算・決算・執行率を突合しました`,
     });
   }
 
@@ -272,7 +350,7 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
     measure: "expenditure_budget" | "expenditure_actual";
     amountYen: bigint;
     sourceValue: string;
-    council?: boolean;
+    classification?: { key: string; label: string };
   }) =>
     buildFiscalAmountRecord({
       fiscalYear: FISCAL_YEAR,
@@ -288,58 +366,61 @@ export function parseMajorMeasures2024(text: string): FiscalParserResult {
       ...(params.eventKind === "available_budget_snapshot"
         ? { asOfDate: "2025-03-31" }
         : {}),
-      ...(params.council
+      ...(params.classification
         ? {
-            classificationKey: "council_expense",
-            sourceClassificationLabel: "議会費",
+            classificationKey: params.classification.key,
+            sourceClassificationLabel: params.classification.label,
           }
         : {}),
     });
+  // 公式表と同じ順序で、款ごとに当初予算・予算現額・決算を並べる。
   const records = [
+    ...rows.flatMap((row) => [
+      amount({
+        eventKind: "initial_budget",
+        decisionStage: "passed",
+        measure: "expenditure_budget",
+        amountYen: row.initial,
+        sourceValue: row.cells[0],
+        classification: { key: row.classificationKey, label: row.label },
+      }),
+      amount({
+        eventKind: "available_budget_snapshot",
+        decisionStage: "not_applicable",
+        measure: "expenditure_budget",
+        amountYen: row.current,
+        sourceValue: row.cells[2],
+        classification: { key: row.classificationKey, label: row.label },
+      }),
+      amount({
+        eventKind: "settlement",
+        decisionStage: "not_applicable",
+        measure: "expenditure_actual",
+        amountYen: row.actual,
+        sourceValue: row.cells[4],
+        classification: { key: row.classificationKey, label: row.label },
+      }),
+    ]),
     amount({
       eventKind: "initial_budget",
       decisionStage: "passed",
       measure: "expenditure_budget",
-      amountYen: generalInitial,
-      sourceValue: totalCells[0],
+      amountYen: total.initial,
+      sourceValue: total.cells[0],
     }),
     amount({
       eventKind: "available_budget_snapshot",
       decisionStage: "not_applicable",
       measure: "expenditure_budget",
-      amountYen: generalCurrent,
-      sourceValue: totalCells[2],
+      amountYen: total.current,
+      sourceValue: total.cells[2],
     }),
     amount({
       eventKind: "settlement",
       decisionStage: "not_applicable",
       measure: "expenditure_actual",
-      amountYen: generalActual,
-      sourceValue: totalCells[4],
-    }),
-    amount({
-      eventKind: "initial_budget",
-      decisionStage: "passed",
-      measure: "expenditure_budget",
-      amountYen: councilInitial,
-      sourceValue: councilCells[0],
-      council: true,
-    }),
-    amount({
-      eventKind: "available_budget_snapshot",
-      decisionStage: "not_applicable",
-      measure: "expenditure_budget",
-      amountYen: councilCurrent,
-      sourceValue: councilCells[2],
-      council: true,
-    }),
-    amount({
-      eventKind: "settlement",
-      decisionStage: "not_applicable",
-      measure: "expenditure_actual",
-      amountYen: councilActual,
-      sourceValue: councilCells[4],
-      council: true,
+      amountYen: total.actual,
+      sourceValue: total.cells[4],
     }),
   ];
   return { records, validationSummary };

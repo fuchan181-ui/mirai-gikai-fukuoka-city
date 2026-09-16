@@ -37,6 +37,13 @@ const PARSER_VERSION = "1.0.0";
  */
 const GENERAL_BUDGET_2026_PARSER_VERSION = "1.1.0";
 
+/**
+ * 令和6年度の主要な施策の成果等報告書は、歳出表の款別内訳を
+ * 議会費だけでなく全款へ広げたparserへ差し替えた。
+ * 抽出結果が変わるため、版を分けて再解析させる。
+ */
+const MAJOR_MEASURES_2024_PARSER_VERSION = "1.1.0";
+
 export const fiscalSourceProfiles = [
   {
     profileKey: "budget-overview-2026-general-account",
@@ -81,7 +88,7 @@ export const fiscalSourceProfiles = [
     profileKey: "major-measures-2024-fiscal",
     profileVersion: PROFILE_VERSION,
     parserName: "numazu-fiscal-major-measures-2024",
-    parserVersion: PARSER_VERSION,
+    parserVersion: MAJOR_MEASURES_2024_PARSER_VERSION,
     sourceKind: "major_measures",
     seriesCode: "major-measures-fiscal",
     fiscalYear: 2024,

@@ -33,6 +33,15 @@ const TERTIARY: FixtureIds = {
   contentHash: "sha256:fiscal-apply-test-tertiary",
 };
 
+// 同じ資料をもう一度解析したときの取り込み。資料版は同じで解析版だけが違う。
+const REPLAY: FixtureIds = {
+  sourceId: PRIMARY.sourceId,
+  sourceVersionId: "31000000-0000-0000-0000-000000000302",
+  runId: "31000000-0000-0000-0000-000000000303",
+  parseRunId: "31000000-0000-0000-0000-000000000304",
+  contentHash: "sha256:fiscal-apply-test-replay",
+};
+
 const REVIEWER_ID = "31000000-0000-0000-0000-000000000099";
 const MATCHED_TARGET_ID = "31000000-0000-0000-0000-000000000098";
 const FISCAL_YEAR = 2091;
@@ -41,17 +50,26 @@ const SERIES_CODE = "fiscal-apply-test-series";
 const SECONDARY_SERIES_CODE = "fiscal-apply-test-series-secondary";
 const TITLE = "令和73年度予算概要";
 const SOURCE_URL = "https://example.com/fiscal-apply-test.pdf";
+// 実データの款キー（welfare など）と同じキーを使うと、既に公開済みの分類が
+// ある環境だけ新規作成が省かれ、結果が環境に依存する。テスト専用のキーを使う。
+const REPLAY_CLASSIFICATION_KEY = "fiscal_apply_test_welfare";
+const REPLAY_CLASSIFICATION_LABEL = "民生費";
 
 function ingestionFixtureSql(
   ids: FixtureIds,
-  options: { retainArtifact?: boolean } = {}
+  options: { retainArtifact?: boolean; reuseIngestionSource?: boolean } = {}
 ): string {
   const retainArtifact = options.retainArtifact ?? true;
+  const reuseIngestionSource = options.reuseIngestionSource ?? false;
   return `
-    insert into public.ingestion_sources (id, source, url) values (
+    ${
+      reuseIngestionSource
+        ? ""
+        : `insert into public.ingestion_sources (id, source, url) values (
       '${ids.sourceId}', 'fiscal_apply_test_${ids.sourceId.slice(-3)}',
       '${SOURCE_URL}'
-    );
+    );`
+    }
     insert into public.ingestion_source_versions (
       id, ingestion_source_id, content_hash, fetched_at
     ) values (
@@ -88,7 +106,8 @@ function jsonLiteral(value: unknown): string {
 }
 
 function documentMetadataRow(
-  overrides: Record<string, unknown> = {}
+  overrides: Record<string, unknown> = {},
+  recordOverrides: Record<string, unknown> = {}
 ): Record<string, unknown> {
   return {
     record_kind: "document_metadata",
@@ -96,6 +115,7 @@ function documentMetadataRow(
     content_fingerprint: "sha256:document",
     change_kind: "new",
     matched_target_id: null,
+    ...recordOverrides,
     parsed_payload: {
       sourceKind: "budget_overview",
       fiscalYear: FISCAL_YEAR,
@@ -196,10 +216,11 @@ function preparedBatchSql(
         nullReason: "not_published",
       },
     }),
-  ]
+  ],
+  options: { reuseIngestionSource?: boolean } = {}
 ): string {
   return `
-    ${ingestionFixtureSql(ids)}
+    ${ingestionFixtureSql(ids, options)}
     ${saveBatchSql(ids, rows)}
     ${verifyRecordsSql(ids)}
   `;
@@ -574,7 +595,7 @@ describe("apply_verified_fiscal_staging()", () => {
       select ${approveCallSql(PRIMARY)};
       ${expectRaiseSql(
         `perform ${applyCallSql(PRIMARY)}`,
-        "supports verified new candidates only"
+        "supports new and unchanged candidates only"
       )}
       ${saveBatchSql(
         SECONDARY,
@@ -773,7 +794,300 @@ describe("apply_verified_fiscal_staging()", () => {
     expect(output).toContain("ROLLBACK");
   });
 
-  it("確定していない差分候補を適用しない", () => {
+  it("同じ資料版を取り込み直して款別の内訳を公開する", () => {
+    const output = executeInTestDatabase(`
+      begin;
+      ${preparedBatchSql(PRIMARY)}
+      select ${approveCallSql(PRIMARY)};
+      select ${applyCallSql(PRIMARY)};
+      ${preparedBatchSql(
+        REPLAY,
+        [
+          documentMetadataRow(
+            {},
+            {
+              change_kind: "unchanged",
+              matched_target_id: MATCHED_TARGET_ID,
+            }
+          ),
+          amountRow({
+            changeKind: "unchanged",
+            matchedTargetId: MATCHED_TARGET_ID,
+          }),
+          amountRow({
+            sourceRecordKey: "amount:fiscal_apply_test_welfare",
+            payload: {
+              amountYen: "2000",
+              classificationKey: REPLAY_CLASSIFICATION_KEY,
+              sourceClassificationLabel: REPLAY_CLASSIFICATION_LABEL,
+            },
+          }),
+        ],
+        { reuseIngestionSource: true }
+      )}
+      select ${approveCallSql(REPLAY)};
+      do $block$
+      declare
+        v_result jsonb;
+      begin
+        select ${applyCallSql(REPLAY)} into v_result;
+        if (v_result ->> 'amountCount')::integer <> 2
+          or (v_result ->> 'amountSetCount')::integer <> 1
+          or (v_result ->> 'classificationCount')::integer <> 2 then
+          raise exception 'unexpected apply result %', v_result;
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_amount_set_revisions
+          where publication_state = 'published'
+            and fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'published amount set revision was not replaced';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_amount_set_revisions
+          where publication_state = 'superseded'
+            and fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'previous amount set revision was not superseded';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_source_document_edition_observations
+          where publication_state = 'published'
+            and fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'published edition observation was not replaced';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_source_document_edition_observations
+          where publication_state = 'superseded'
+            and fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'previous edition observation was not superseded';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_source_document_edition_observations
+          where publication_state = 'published'
+            and fiscal_year = ${FISCAL_YEAR}
+            and source_version_id = '${REPLAY.sourceVersionId}'
+        ) <> 1 then
+          raise exception 'published edition observation is not the replay';
+        end if;
+        -- 差し替えた観測だけを根拠にしていた公開分類は、作り直す。
+        if (
+          select count(*)
+          from public.fiscal_classification_revisions revision
+          join public.fiscal_classifications classification
+            on classification.id = revision.classification_id
+          where classification.canonical_key = 'assembly'
+            and revision.publication_state = 'published'
+            and revision.valid_from_fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'replayed classification was not republished';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_classification_revisions revision
+          join public.fiscal_classifications classification
+            on classification.id = revision.classification_id
+          where classification.canonical_key = 'assembly'
+            and revision.publication_state = 'superseded'
+        ) <> 1 then
+          raise exception
+            'replayed classification revision was not superseded';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_classification_revisions revision
+          join public.fiscal_classifications classification
+            on classification.id = revision.classification_id
+          where classification.canonical_key = '${REPLAY_CLASSIFICATION_KEY}'
+            and revision.publication_state = 'published'
+            and revision.display_label = '${REPLAY_CLASSIFICATION_LABEL}'
+            and revision.valid_from_fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'new classification was not published';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_amount_revisions revision
+          join public.fiscal_amount_set_revisions set_revision
+            on set_revision.id = revision.amount_set_revision_id
+           and set_revision.publication_state = 'published'
+           and set_revision.fiscal_year = ${FISCAL_YEAR}
+          where revision.amount_yen = 1000
+        ) <> 1 then
+          raise exception 'unchanged amount was not carried over';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_amount_revisions revision
+          join public.fiscal_amount_set_revisions set_revision
+            on set_revision.id = revision.amount_set_revision_id
+           and set_revision.publication_state = 'published'
+           and set_revision.fiscal_year = ${FISCAL_YEAR}
+          where revision.amount_yen = 2000
+        ) <> 1 then
+          raise exception 'newly published amount is missing';
+        end if;
+        -- 解析をやり直しても資料上の出現は増やさない。
+        if (
+          select count(*)
+          from public.fiscal_amount_source_occurrences occurrence
+          join public.fiscal_amounts amount on amount.id = occurrence.amount_id
+          join public.fiscal_amount_sets amount_set
+            on amount_set.id = amount.amount_set_id
+          join public.fiscal_events event
+            on event.id = amount_set.fiscal_event_id
+          where event.fiscal_year = ${FISCAL_YEAR}
+        ) <> 3 then
+          raise exception 'source occurrences were duplicated';
+        end if;
+      end;
+      $block$;
+      rollback;
+    `);
+
+    expect(output).toContain("ROLLBACK");
+  });
+
+  it("収集状況の根拠が残る資料版の取り込み直しを拒否する", () => {
+    const output = executeInTestDatabase(`
+      begin;
+      ${preparedBatchSql(PRIMARY)}
+      select ${approveCallSql(PRIMARY)};
+      select ${applyCallSql(PRIMARY)};
+      do $block$
+      declare
+        v_observation public.fiscal_source_document_edition_observations;
+        v_scope_id uuid;
+        v_coverage_id uuid;
+        v_coverage_occurrence_id uuid;
+        v_coverage_observation_id uuid;
+      begin
+        select * into v_observation
+        from public.fiscal_source_document_edition_observations
+        where publication_state = 'published'
+          and fiscal_year = ${FISCAL_YEAR};
+
+        select id into v_scope_id
+        from public.fiscal_reporting_scopes
+        where code = 'general_account';
+
+        insert into public.fiscal_data_coverage (
+          fiscal_year, reporting_scope_id, source_kind, data_kind
+        ) values (
+          ${FISCAL_YEAR}, v_scope_id, 'major_measures', 'amount_set'
+        ) returning id into v_coverage_id;
+
+        insert into public.fiscal_data_coverage_source_occurrences (
+          coverage_id, fiscal_year, reporting_scope_id, source_kind,
+          data_kind, edition_source_occurrence_id, edition_id,
+          ingestion_source_id, source_coverage_key
+        ) values (
+          v_coverage_id, ${FISCAL_YEAR}, v_scope_id, 'major_measures',
+          'amount_set', v_observation.edition_source_occurrence_id,
+          v_observation.edition_id, v_observation.ingestion_source_id,
+          'coverage-guard-fixture'
+        ) returning id into v_coverage_occurrence_id;
+
+        insert into public.fiscal_data_coverage_observations (
+          coverage_id, fiscal_year, reporting_scope_id, source_kind,
+          data_kind, observation_key, state, record_presence,
+          expected_count, matched_count
+        ) values (
+          v_coverage_id, ${FISCAL_YEAR}, v_scope_id, 'major_measures',
+          'amount_set', 'coverage-guard-fixture', 'collected', 'present',
+          1, 1
+        ) returning id into v_coverage_observation_id;
+
+        insert into public.fiscal_data_coverage_observation_sources (
+          observation_id, coverage_id, fiscal_year, reporting_scope_id,
+          source_kind, data_kind, coverage_source_occurrence_id,
+          edition_source_occurrence_id, edition_observation_id, edition_id,
+          ingestion_source_id, source_version_id, parse_run_id, evidence_role,
+          observed_presence, source_locator, extraction_method, qa_status,
+          verified_by, verified_at
+        ) values (
+          v_coverage_observation_id, v_coverage_id, ${FISCAL_YEAR},
+          v_scope_id, 'major_measures', 'amount_set',
+          v_coverage_occurrence_id, v_observation.edition_source_occurrence_id,
+          v_observation.id, v_observation.edition_id,
+          v_observation.ingestion_source_id, v_observation.source_version_id,
+          v_observation.parse_run_id, 'primary', 'present', 'page=1',
+          'parser', 'verified',
+          '${REVIEWER_ID}', now()
+        );
+      end;
+      $block$;
+      ${preparedBatchSql(
+        REPLAY,
+        [
+          documentMetadataRow(
+            {},
+            {
+              change_kind: "unchanged",
+              matched_target_id: MATCHED_TARGET_ID,
+            }
+          ),
+          amountRow({
+            changeKind: "unchanged",
+            matchedTargetId: MATCHED_TARGET_ID,
+          }),
+        ],
+        { reuseIngestionSource: true }
+      )}
+      select ${approveCallSql(REPLAY)};
+      ${expectRaiseSql(
+        `perform ${applyCallSql(REPLAY)}`,
+        "has coverage evidence to publish again"
+      )}
+      rollback;
+    `);
+
+    expect(output).toContain("ROLLBACK");
+  });
+
+  it("値が変わったunchanged候補を適用しない", () => {
+    const output = executeInTestDatabase(`
+      begin;
+      ${preparedBatchSql(PRIMARY)}
+      select ${approveCallSql(PRIMARY)};
+      select ${applyCallSql(PRIMARY)};
+      ${preparedBatchSql(
+        REPLAY,
+        [
+          documentMetadataRow(
+            {},
+            {
+              change_kind: "unchanged",
+              matched_target_id: MATCHED_TARGET_ID,
+            }
+          ),
+          amountRow({
+            changeKind: "unchanged",
+            matchedTargetId: MATCHED_TARGET_ID,
+            payload: { amountYen: "2000" },
+          }),
+        ],
+        { reuseIngestionSource: true }
+      )}
+      select ${approveCallSql(REPLAY)};
+      ${expectRaiseSql(
+        `perform ${applyCallSql(REPLAY)}`,
+        "does not match the previous revision"
+      )}
+      rollback;
+    `);
+
+    expect(output).toContain("ROLLBACK");
+  });
+
+  it("前の版と突き合わせられないunchanged候補を適用しない", () => {
     const output = executeInTestDatabase(`
       begin;
       ${preparedBatchSql(PRIMARY, [
@@ -786,7 +1100,7 @@ describe("apply_verified_fiscal_staging()", () => {
       select ${approveCallSql(PRIMARY)};
       ${expectRaiseSql(
         `perform ${applyCallSql(PRIMARY)}`,
-        "supports verified new candidates only"
+        "does not match the previous revision"
       )}
       rollback;
     `);

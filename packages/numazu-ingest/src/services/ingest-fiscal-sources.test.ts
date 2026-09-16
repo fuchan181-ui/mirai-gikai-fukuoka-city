@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   findFiscalSourceProfile,
@@ -5,13 +6,17 @@ import {
 } from "../shared/fiscal-source-profiles";
 import { ingestFiscalSources } from "./ingest-fiscal-sources";
 
-const majorMeasuresFixture = `令和６年度 市政報告書
-\f第１章 財政
-\f一般会計の当初予算規模は 87,960,000 千円
-最終予算額は 106,430,416 千円
-\f歳出 当初予算額 予算現額 決算額 執行率
-１ 議会費 460,162,000 0.5 464,149,000 0.4 449,516,456 0.5 96.8
-計 87,960,000,000 100.0 106,430,416,000 100.0 92,736,569,118 100.0 87.1`;
+/** 令和6年度市政報告書の解析は parser と同じ fixture で検証する。 */
+const majorMeasuresFixture = readFileSync(
+  new URL(
+    "../parsers/__fixtures__/fiscal-major-measures-2024-layout.txt",
+    import.meta.url
+  ),
+  "utf8"
+);
+
+/** 一般会計合計1件と13款それぞれの当初予算・予算現額・決算の金額レコード数。 */
+const MAJOR_MEASURES_AMOUNT_COUNT = 3 * 13 + 3;
 
 describe("ingestFiscalSources", () => {
   it("staging保存失敗時にparse runを再試行可能な失敗として確定する", async () => {
@@ -147,16 +152,11 @@ describe("ingestFiscalSources", () => {
     });
 
     expect(saved).toEqual({
-      discoveredCount: 7,
+      discoveredCount: MAJOR_MEASURES_AMOUNT_COUNT + 1,
       parseStatus: "completed",
       recordKinds: [
         "document_metadata",
-        "amount",
-        "amount",
-        "amount",
-        "amount",
-        "amount",
-        "amount",
+        ...Array.from({ length: MAJOR_MEASURES_AMOUNT_COUNT }, () => "amount"),
       ],
     });
   });

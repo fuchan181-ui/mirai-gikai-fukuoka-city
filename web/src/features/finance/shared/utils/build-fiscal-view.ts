@@ -12,6 +12,10 @@ import {
   measuresOf,
   totalLineOf,
 } from "./build-fiscal-summary";
+import {
+  buildFiscalExecution,
+  type FiscalExecution,
+} from "./build-fiscal-execution";
 
 /** 同じ種類・段階の金額セットが複数あるときは、議決を経た段階を優先する。 */
 const STAGE_PRIORITY: FiscalDecisionStage[] = [
@@ -109,6 +113,8 @@ export type FiscalYearView = {
   revenueBudget: FiscalBreakdown | null;
   expenditureBudget: FiscalBreakdown | null;
   expenditureActual: FiscalBreakdown | null;
+  /** 年度末の予算現額と決算の款別の対応。どちらかが未公開なら null。 */
+  expenditureExecution: FiscalExecution | null;
 };
 
 /**
@@ -206,6 +212,11 @@ export function buildFiscalYearView(
     "initial_budget",
     "expenditure_budget"
   );
+  const availableBudgetSet = pickAmountSet(
+    amountSets,
+    "available_budget_snapshot",
+    "expenditure_budget"
+  );
   const settlementSet = pickAmountSet(
     amountSets,
     "settlement",
@@ -225,6 +236,11 @@ export function buildFiscalYearView(
     expenditureActual: settlementSet
       ? buildBreakdown(settlementSet, "expenditure_actual")
       : null,
+    expenditureExecution: buildFiscalExecution(fiscalYear, {
+      initialBudgetSet: expenditureBudgetSet,
+      availableBudgetSet,
+      settlementSet,
+    }),
   };
 }
 
