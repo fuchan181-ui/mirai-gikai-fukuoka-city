@@ -83,7 +83,8 @@ function inferCurrentBillSubmitter(
   return null;
 }
 
-function parseSessionHeading(
+/** 開会中ページの見出しから、会期の年・月・回次を読み取る。 */
+export function parseCurrentSessionHeading(
   html: string
 ): Omit<ParsedCurrentSessionBills, "bills"> | null {
   for (const match of html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)) {
@@ -168,7 +169,7 @@ export function parseCurrentSessionBillsHtml(
   baseUrl: string | null = null
 ): ParsedCurrentSessionBills | null {
   const visibleHtml = html.replace(/<!--[\s\S]*?-->/g, "");
-  const session = parseSessionHeading(visibleHtml);
+  const session = parseCurrentSessionHeading(visibleHtml);
   const list = extractSubmittedBillsList(visibleHtml);
   if (!session || list === null) return null;
 

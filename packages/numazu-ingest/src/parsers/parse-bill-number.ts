@@ -14,6 +14,8 @@ const PREFIXES: ReadonlyArray<readonly [string, BillNumberKind]> = [
 export type ParsedBillNumber = {
   /** 表記を正規化した議案番号（全角数字は半角に。例: "発議第1号"） */
   billNumber: string;
+  /** 議案番号の接頭辞（例: "発議第"）。番号の範囲を別の番号へ展開するときに使う */
+  prefix: string;
   kind: BillNumberKind;
   value: number;
 };
@@ -33,6 +35,7 @@ export function parseBillNumber(value: string): ParsedBillNumber | null {
     if (!matched) continue;
     return {
       billNumber: `${prefix}${matched[1]}号`,
+      prefix,
       kind,
       value: Number(matched[1]),
     };

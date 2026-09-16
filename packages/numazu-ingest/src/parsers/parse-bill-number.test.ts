@@ -5,6 +5,7 @@ describe("parseBillNumber", () => {
   it("議第◯号を解析する", () => {
     expect(parseBillNumber("議第58号")).toEqual({
       billNumber: "議第58号",
+      prefix: "議第",
       kind: "gi",
       value: 58,
     });
@@ -18,6 +19,7 @@ describe("parseBillNumber", () => {
   it("発議第を議第と取り違えない", () => {
     expect(parseBillNumber("発議第4号")).toEqual({
       billNumber: "発議第4号",
+      prefix: "発議第",
       kind: "hatsugi",
       value: 4,
     });
@@ -31,6 +33,7 @@ describe("parseBillNumber", () => {
   it("全角数字を半角に正規化する", () => {
     expect(parseBillNumber("発議第１号")).toEqual({
       billNumber: "発議第1号",
+      prefix: "発議第",
       kind: "hatsugi",
       value: 1,
     });
@@ -39,6 +42,7 @@ describe("parseBillNumber", () => {
   it("議案名が続いていても番号だけを取る", () => {
     expect(parseBillNumber("議第58号 沼津市印鑑条例の一部改正")).toEqual({
       billNumber: "議第58号",
+      prefix: "議第",
       kind: "gi",
       value: 58,
     });

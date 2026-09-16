@@ -20,6 +20,7 @@ import { ingestGeneralQuestionMinutes } from "./services/ingest-general-question
 import { ingestGeneralQuestionsForTerm } from "./services/ingest-general-questions";
 import { ingestMembers } from "./services/ingest-members";
 import { ingestMinutes } from "./services/ingest-minutes";
+import { ingestSessionProgress } from "./services/ingest-session-progress";
 import { ingestSessionSchedule } from "./services/ingest-sessions";
 import { CURRENT_TERM } from "./shared/constants-site";
 
@@ -37,6 +38,7 @@ export { ingestGeneralQuestionMinutes } from "./services/ingest-general-question
 export { ingestGeneralQuestionsForTerm } from "./services/ingest-general-questions";
 export { ingestMembers } from "./services/ingest-members";
 export { ingestMinutes } from "./services/ingest-minutes";
+export { ingestSessionProgress } from "./services/ingest-session-progress";
 export { ingestSessionSchedule } from "./services/ingest-sessions";
 export { CURRENT_TERM } from "./shared/constants-site";
 
@@ -44,6 +46,7 @@ export type IngestMode =
   | "sessions"
   | "members"
   | "current-bills"
+  | "session-progress"
   | "bills"
   | "minutes"
   | "amivoice"
@@ -116,6 +119,12 @@ async function dispatch(
         client: siteClient,
       });
 
+    case "session-progress":
+      return ingestSessionProgress({
+        force: options.force,
+        client: siteClient,
+      });
+
     case "bills":
       return ingestBills(options, siteClient);
 
@@ -181,7 +190,11 @@ async function dispatch(
         force: options.force,
         client: siteClient,
       });
-      return { sessions, currentBills };
+      const sessionProgress = await ingestSessionProgress({
+        force: options.force,
+        client: siteClient,
+      });
+      return { sessions, currentBills, sessionProgress };
     }
 
     case "daily": {
@@ -207,6 +220,10 @@ async function dispatch(
         force: options.force,
         client: siteClient,
       });
+      const sessionProgress = await ingestSessionProgress({
+        force: options.force,
+        client: siteClient,
+      });
       const bills = await ingestBills(options, siteClient);
       // 会議録は議案が入っている前提で突合するため最後に流す
       const minutes = await ingestMinutesForYear(options, discussVisionClient);
@@ -219,6 +236,7 @@ async function dispatch(
         sessions,
         members,
         currentBills,
+        sessionProgress,
         bills,
         minutes,
         generalQuestions,

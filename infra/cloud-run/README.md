@@ -105,9 +105,10 @@ CONFIG_FILE=infra/cloud-run/config.env.production bash infra/cloud-run/provision
 | 会期・提出議案 | 毎日6:30・18:30 JST | `--mode=ingest --target=frequent` |
 | 議決結果・会議録・AmiVoice・AIタグ付け | 毎日20:30 JST | `--mode=maintain-bills` |
 
-取り込みは負荷に応じて2系統に分ける。`frequent`は会期予定、開会中の提出議案、
-議案本文リンクを6:30と18:30に取得し、`daily`は期の索引にある議案審議結果、会議録、
-AmiVoiceを20:30に取得し、未分類の議案を既存のテーマ定義に基づいてAIでタグ付けする。
+取り込みは負荷に応じて2系統に分ける。`frequent`は会期予定、開会中の提出議案と
+議案本文リンク、開会中ページの議事報告（委員会付託・委員会審査の結果）を6:30と18:30に
+取得し、`daily`は期の索引にある議案審議結果、会議録、AmiVoiceを20:30に取得し、
+未分類の議案を既存のテーマ定義に基づいてAIでタグ付けする。
 全結果PDFの走査とテキスト化、AIタグ付けは1日1回に限定する。
 新しい議案は`draft`で作成し、自動公開しない。管理画面で内容を確認して公開状態を変更する。
 取得元の内容ハッシュが同じ場合は解析・DB更新を省略する。
@@ -161,6 +162,10 @@ gcloud run jobs executions list \
 DBでは`ingestion_runs.source = 'frequent'`と`'daily'`の最新行が`completed`であること、
 `frequent`の`stats.currentBills.billCount`が公式ページの提出議案件数と一致することを
 確認する。内容に変更がなく`skipped = true`の場合も、解析した掲載件数を`billCount`に返す。
+あわせて`frequent`の`stats.sessionProgress`を見て、`reportCount`が議事報告の公開件数と
+一致し、委員会審査の結果が公開されていれば`referredCount`/`committeeResultCount`が
+動いていることを確認する。この2つは累計ではなく、その実行で新しく書き込んだ件数である。
+すでに同じ状態が入っている間は0のままで、`skipped = true`のときも0になる。
 提出議案が0件または一部でも解析不能ならジョブを失敗させるため、Cloud Run Job失敗の
 alertで検知される。Schedulerの認証・起動失敗は別のalert、軽量系統で23時間30分、
 日次系統で25時間成功がなければ対応するabsence alertで通知される。
