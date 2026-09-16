@@ -1,3 +1,4 @@
+import type { ParsedFiscalStagingRecord } from "../shared/utils/build-fiscal-staging";
 import { parseFiscalInteger } from "../shared/utils/parse-fiscal-amount-value";
 import {
   buildFiscalAmountRecord,
@@ -21,31 +22,102 @@ function failure(message: string): FiscalParserResult {
   };
 }
 
-function amountRecord(
-  value: bigint,
-  sourceValueText: string,
-  page: number,
-  council: boolean,
-  revenue = false
-) {
+type SourceClassification = {
+  label: string;
+  key: string;
+};
+
+type AmountClassification = SourceClassification & { scheme: string };
+
+function classificationAt(
+  classifications: readonly SourceClassification[],
+  index: number,
+  scheme: string
+): AmountClassification {
+  const entry = classifications[index];
+  if (!entry) throw new Error("classification index out of range");
+  return { label: entry.label, key: entry.key, scheme };
+}
+
+/**
+ * 歳入款の公式表記と分類キー。公式表の並び順・款名のいずれかが変われば解析を中止する。
+ * 分類キーは `fiscal_classifications.scheme = 'revenue_source'` の安定キーとして使う。
+ */
+const REVENUE_CLASSIFICATIONS = [
+  { label: "市税", key: "city_tax" },
+  { label: "地方譲与税", key: "local_transfer_tax" },
+  { label: "利子割交付金", key: "interest_portion_grant" },
+  { label: "配当割交付金", key: "dividend_portion_grant" },
+  { label: "株式等譲渡所得割交付金", key: "capital_gains_portion_grant" },
+  { label: "法人事業税交付金", key: "corporate_business_tax_grant" },
+  { label: "地方消費税交付金", key: "local_consumption_tax_grant" },
+  { label: "ゴルフ場利用税交付金", key: "golf_course_tax_grant" },
+  { label: "環境性能割交付金", key: "environmental_performance_grant" },
+  {
+    label: "国有提供施設等所在市町村助成交付金",
+    key: "national_property_grant",
+  },
+  { label: "地方特例交付金", key: "local_special_grant" },
+  { label: "地方交付税", key: "local_allocation_tax" },
+  { label: "交通安全対策特別交付金", key: "traffic_safety_grant" },
+  { label: "分担金及び負担金", key: "contributions" },
+  { label: "使用料及び手数料", key: "fees_and_charges" },
+  { label: "国庫支出金", key: "national_treasury_disbursements" },
+  { label: "県支出金", key: "prefectural_treasury_disbursements" },
+  { label: "財産収入", key: "property_revenue" },
+  { label: "寄附金", key: "donations" },
+  { label: "繰入金", key: "transfers_in" },
+  { label: "繰越金", key: "carryover_funds" },
+  { label: "諸収入", key: "miscellaneous_revenue" },
+  { label: "市債", key: "municipal_bonds" },
+] as const satisfies readonly SourceClassification[];
+
+/**
+ * 歳出款の公式表記と分類キー。議会費は既存stagingと同じ `council_expense` を維持する。
+ */
+const EXPENDITURE_CLASSIFICATIONS = [
+  { label: "議会費", key: "council_expense" },
+  { label: "総務費", key: "general_affairs" },
+  { label: "民生費", key: "welfare" },
+  { label: "衛生費", key: "public_health" },
+  { label: "労働費", key: "labor" },
+  { label: "農林水産業費", key: "agriculture_forestry_fisheries" },
+  { label: "商工費", key: "commerce_and_industry" },
+  { label: "土木費", key: "civil_engineering" },
+  { label: "消防費", key: "fire_service" },
+  { label: "教育費", key: "education" },
+  { label: "災害復旧費", key: "disaster_recovery" },
+  { label: "公債費", key: "debt_service" },
+  { label: "予備費", key: "reserve_fund" },
+] as const satisfies readonly SourceClassification[];
+
+const PURPOSE_SCHEME = "purpose";
+const REVENUE_SCHEME = "revenue_source";
+
+function amountRecord(options: {
+  amount: bigint;
+  sourceValueText: string;
+  page: number;
+  revenue?: boolean;
+  classification?: AmountClassification;
+}): ParsedFiscalStagingRecord {
   return buildFiscalAmountRecord({
     fiscalYear: 2026,
     eventKind: "initial_budget",
     decisionStage: "proposed",
-    measure: revenue ? "revenue_budget" : "expenditure_budget",
-    amountYen: value * 1000n,
-    sourceValueText,
-    sourceValueNumeric: value.toString(),
+    measure: options.revenue ? "revenue_budget" : "expenditure_budget",
+    amountYen: options.amount * 1000n,
+    sourceValueText: options.sourceValueText,
+    sourceValueNumeric: options.amount.toString(),
     sourceUnit: "thousand_yen",
     sourcePrecisionYen: 1000,
-    sourcePage: page,
-    sourceTable: council
-      ? "一般会計 議会費"
-      : `一般会計 歳${revenue ? "入" : "出"}`,
-    ...(council
+    sourcePage: options.page,
+    sourceTable: `一般会計 歳${options.revenue ? "入" : "出"}`,
+    ...(options.classification
       ? {
-          classificationKey: "council_expense",
-          sourceClassificationLabel: "議会費",
+          classificationKey: options.classification.key,
+          classificationScheme: options.classification.scheme,
+          sourceClassificationLabel: options.classification.label,
         }
       : {}),
   });
@@ -60,6 +132,11 @@ type ComparisonRow = {
     previousCompositionRatio: string;
     changeRate: string;
   };
+};
+
+type ComparisonTable = {
+  rows: { label: string; values: ComparisonRow }[];
+  total: ComparisonRow;
 };
 
 function comparisonRow(text: string): ComparisonRow | null {
@@ -97,7 +174,11 @@ function comparisonRow(text: string): ComparisonRow | null {
   };
 }
 
-function parseComparisonPage(page: string, side: "入" | "出", count: number) {
+function parseComparisonPage(
+  page: string,
+  side: "入" | "出",
+  classifications: readonly SourceClassification[]
+): ComparisonTable | null {
   const normalized = compact(page);
   if (
     !normalized.includes(`歳${side}`) ||
@@ -123,9 +204,14 @@ function parseComparisonPage(page: string, side: "入" | "出", count: number) {
     compact(line).startsWith(`歳${side}合計`)
   );
   if (
-    rows.length !== count ||
+    rows.length !== classifications.length ||
     totals.length !== 1 ||
-    rows.some((row, i) => row.index !== i + 1 || !row.values)
+    rows.some(
+      (row, i) =>
+        row.index !== i + 1 ||
+        row.label !== classifications[i]?.label ||
+        !row.values
+    )
   )
     return null;
   const total = comparisonRow(
@@ -142,7 +228,20 @@ function parseComparisonPage(page: string, side: "入" | "出", count: number) {
     )
   )
     return null;
-  return { rows, total };
+  return {
+    rows: rows.flatMap((row) =>
+      row.values ? [{ label: row.label, values: row.values }] : []
+    ),
+    total,
+  };
+}
+
+function withPublishedMetrics(
+  record: ParsedFiscalStagingRecord,
+  row: ComparisonRow
+): ParsedFiscalStagingRecord {
+  record.parsedPayload.publishedMetrics = row.publishedMetrics;
+  return record;
 }
 
 export function parseGeneralBudget2026(text: string): FiscalParserResult {
@@ -154,45 +253,68 @@ export function parseGeneralBudget2026(text: string): FiscalParserResult {
     !identity.includes("(1)一般会計")
   )
     return failure("令和8年度一般会計の年度・表題・ページ構造を確認できません");
-  const revenue = parseComparisonPage(pages[0], "入", 23);
-  const expenditure = parseComparisonPage(pages[1], "出", 13);
+  const revenue = parseComparisonPage(pages[0], "入", REVENUE_CLASSIFICATIONS);
+  const expenditure = parseComparisonPage(
+    pages[1],
+    "出",
+    EXPENDITURE_CLASSIFICATIONS
+  );
   if (
     !revenue ||
     !expenditure ||
     revenue.total.amounts[0] !== expenditure.total.amounts[0]
   )
     return failure("歳入歳出表の列・単位・款別合計・前年度差額が一致しません");
-  const council = expenditure.rows[0];
-  if (council.label !== "議会費" || !council.values)
-    return failure("歳出第1款の議会費を確認できません");
   const records = [
-    amountRecord(
-      revenue.total.amounts[0],
-      revenue.total.sourceValueText,
-      1,
-      false,
-      true
+    withPublishedMetrics(
+      amountRecord({
+        amount: revenue.total.amounts[0],
+        sourceValueText: revenue.total.sourceValueText,
+        page: 1,
+        revenue: true,
+      }),
+      revenue.total
     ),
-    amountRecord(
-      expenditure.total.amounts[0],
-      expenditure.total.sourceValueText,
-      2,
-      false
+    withPublishedMetrics(
+      amountRecord({
+        amount: expenditure.total.amounts[0],
+        sourceValueText: expenditure.total.sourceValueText,
+        page: 2,
+      }),
+      expenditure.total
     ),
-    amountRecord(
-      council.values.amounts[0],
-      council.values.sourceValueText,
-      2,
-      true
+    ...expenditure.rows.map((row, index) =>
+      withPublishedMetrics(
+        amountRecord({
+          amount: row.values.amounts[0],
+          sourceValueText: row.values.sourceValueText,
+          page: 2,
+          classification: classificationAt(
+            EXPENDITURE_CLASSIFICATIONS,
+            index,
+            PURPOSE_SCHEME
+          ),
+        }),
+        row.values
+      )
+    ),
+    ...revenue.rows.map((row, index) =>
+      withPublishedMetrics(
+        amountRecord({
+          amount: row.values.amounts[0],
+          sourceValueText: row.values.sourceValueText,
+          page: 1,
+          revenue: true,
+          classification: classificationAt(
+            REVENUE_CLASSIFICATIONS,
+            index,
+            REVENUE_SCHEME
+          ),
+        }),
+        row.values
+      )
     ),
   ];
-  for (const [index, row] of [
-    revenue.total,
-    expenditure.total,
-    council.values,
-  ].entries()) {
-    records[index].parsedPayload.publishedMetrics = row.publishedMetrics;
-  }
   return {
     records,
     validationSummary: [
@@ -201,6 +323,11 @@ export function parseGeneralBudget2026(text: string): FiscalParserResult {
         severity: "info",
         message:
           "歳入23款・歳出13款の合計、前年度差額、歳入歳出の一致を確認しました",
+      },
+      {
+        ruleCode: "budget_2026_classification_breakdown_extracted",
+        severity: "info",
+        message: `歳入${REVENUE_CLASSIFICATIONS.length}款・歳出${EXPENDITURE_CLASSIFICATIONS.length}款の内訳を分類キー付きで抽出しました`,
       },
     ],
   };
@@ -262,7 +389,16 @@ export function parseCouncilBudget2026(text: string): FiscalParserResult {
     /^\s*1\s*議\s*会\s*費\s+([\d,]+)(?=\s|$)/
   )?.[1];
   if (!sourceValueText) return failure("議会費の原金額を確認できません");
-  const record = amountRecord(totals[0], sourceValueText, 1, true);
+  const record = amountRecord({
+    amount: totals[0],
+    sourceValueText,
+    page: 1,
+    classification: {
+      label: "議会費",
+      key: "council_expense",
+      scheme: PURPOSE_SCHEME,
+    },
+  });
   record.parsedPayload.evidenceRole = "corroborating";
   return {
     records: [record],

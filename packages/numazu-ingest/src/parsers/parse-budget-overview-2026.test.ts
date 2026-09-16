@@ -16,6 +16,57 @@ const council = readFileSync(
   "utf8"
 );
 
+const EXPENDITURE_KEYS = [
+  "council_expense",
+  "general_affairs",
+  "welfare",
+  "public_health",
+  "labor",
+  "agriculture_forestry_fisheries",
+  "commerce_and_industry",
+  "civil_engineering",
+  "fire_service",
+  "education",
+  "disaster_recovery",
+  "debt_service",
+  "reserve_fund",
+];
+
+const REVENUE_KEYS = [
+  "city_tax",
+  "local_transfer_tax",
+  "interest_portion_grant",
+  "dividend_portion_grant",
+  "capital_gains_portion_grant",
+  "corporate_business_tax_grant",
+  "local_consumption_tax_grant",
+  "golf_course_tax_grant",
+  "environmental_performance_grant",
+  "national_property_grant",
+  "local_special_grant",
+  "local_allocation_tax",
+  "traffic_safety_grant",
+  "contributions",
+  "fees_and_charges",
+  "national_treasury_disbursements",
+  "prefectural_treasury_disbursements",
+  "property_revenue",
+  "donations",
+  "transfers_in",
+  "carryover_funds",
+  "miscellaneous_revenue",
+  "municipal_bonds",
+];
+
+function sumYen(
+  records: readonly { parsedPayload: { [key: string]: unknown } }[]
+): bigint {
+  return records.reduce(
+    (total, record) => total + BigInt(String(record.parsedPayload.amountYen)),
+    0n
+  );
+}
+
 describe("令和8年度予算概要", () => {
   it("原金額表記と公表指標を保持する", () => {
     expect(
@@ -51,29 +102,84 @@ describe("令和8年度予算概要", () => {
     expect(changed).not.toBe(general);
     expect(parseGeneralBudget2026(changed).records).toEqual([]);
   });
-  it("歳入歳出と議会費の千円額を円単位の提案候補として抽出する", () => {
+  it("歳入23款・歳出13款を款別内訳として提案候補に展開する", () => {
     const result = parseFiscalDocument({
       profile: fiscalSourceProfiles[0],
       text: general,
     });
-    expect(result.records.map((r) => r.parsedPayload.amountYen)).toEqual([
-      "95650000000",
-      "95650000000",
-      "469887000",
+    expect(result.records).toHaveLength(38);
+
+    const totals = result.records.slice(0, 2).map((row) => row.parsedPayload);
+    expect(totals).toMatchObject([
+      {
+        measure: "revenue_budget",
+        amountYen: "95650000000",
+        classificationKey: null,
+        sourcePage: "1",
+      },
+      {
+        measure: "expenditure_budget",
+        amountYen: "95650000000",
+        classificationKey: null,
+        sourcePage: "2",
+      },
     ]);
-    expect(result.records.map((r) => r.parsedPayload.measure)).toEqual([
-      "revenue_budget",
-      "expenditure_budget",
-      "expenditure_budget",
-    ]);
+
+    const expenditure = result.records.slice(2, 15);
     expect(
-      result.records.every((r) => r.parsedPayload.decisionStage === "proposed")
+      expenditure.map((row) => row.parsedPayload.classificationKey)
+    ).toEqual(EXPENDITURE_KEYS);
+    expect(
+      expenditure.every(
+        (row) =>
+          row.parsedPayload.classificationScheme === "purpose" &&
+          row.parsedPayload.measure === "expenditure_budget" &&
+          row.parsedPayload.sourcePage === "2" &&
+          row.parsedPayload.sourceUnit === "thousand_yen" &&
+          row.parsedPayload.sourcePrecisionYen === 1000
+      )
     ).toBe(true);
-    expect(result.records[2]?.parsedPayload).toMatchObject({
-      sourcePage: "2",
-      sourceUnit: "thousand_yen",
-      classificationKey: "council_expense",
+    expect(expenditure[0]?.parsedPayload.sourceClassificationLabel).toBe(
+      "議会費"
+    );
+    expect(expenditure[0]?.parsedPayload.amountYen).toBe("469887000");
+    expect(expenditure[1]?.parsedPayload.amountYen).toBe("12486809000");
+
+    const revenue = result.records.slice(15);
+    expect(revenue).toHaveLength(23);
+    expect(revenue.map((row) => row.parsedPayload.classificationKey)).toEqual(
+      REVENUE_KEYS
+    );
+    expect(
+      revenue.every(
+        (row) =>
+          row.parsedPayload.classificationScheme === "revenue_source" &&
+          row.parsedPayload.measure === "revenue_budget" &&
+          row.parsedPayload.sourcePage === "1"
+      )
+    ).toBe(true);
+    expect(revenue[0]?.parsedPayload).toMatchObject({
+      classificationKey: "city_tax",
+      sourceClassificationLabel: "市税",
+      amountYen: "35500000000",
     });
+    expect(revenue[22]?.parsedPayload).toMatchObject({
+      classificationKey: "municipal_bonds",
+      sourceClassificationLabel: "市債",
+      amountYen: "9569500000",
+    });
+
+    // 款別内訳の単純合計が公式の歳入・歳出合計と一致する。
+    expect(sumYen(expenditure)).toBe(95650000000n);
+    expect(sumYen(revenue)).toBe(95650000000n);
+
+    const keys = result.records.map((row) => row.sourceRecordKey);
+    expect(new Set(keys).size).toBe(result.records.length);
+    expect(
+      result.records.every(
+        (row) => row.parsedPayload.decisionStage === "proposed"
+      )
+    ).toBe(true);
     expect(result.validationSummary.every((v) => v.severity === "info")).toBe(
       true
     );
