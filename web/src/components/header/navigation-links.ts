@@ -9,4 +9,5 @@ export const HEADER_NAVIGATION_LINKS = [
   ...(GENERAL_QUESTIONS_ENABLED
     ? [{ label: "一般質問を見る", href: routes.generalQuestions() }]
     : []),
+  { label: "予算と決算を見る", href: routes.finance() },
 ] as const;

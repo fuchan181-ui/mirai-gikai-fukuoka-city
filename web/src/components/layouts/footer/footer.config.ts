@@ -27,6 +27,10 @@ export const primaryLinks: FooterLink[] = [
     href: routes.gikaiSessions(),
   },
   {
+    label: "予算とその使われ方",
+    href: routes.finance(),
+  },
+  {
     label: "沼津市議会（市公式サイト）",
     href: EXTERNAL_LINKS.NUMAZU_COUNCIL,
     external: true,

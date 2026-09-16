@@ -55,4 +55,8 @@ export const routes = {
   generalQuestions: () => "/questions" as const,
   generalQuestionsSession: (slug: string) =>
     `/questions/sessions/${slug}` as const,
+
+  // ── 財政 ──────────────────────────────────────────
+  finance: () => "/finance" as const,
+  financeYear: (fiscalYear: number) => `/finance/${fiscalYear}` as const,
 } as const;

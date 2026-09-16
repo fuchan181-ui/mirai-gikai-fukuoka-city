@@ -16,6 +16,7 @@ describe("footer.config", () => {
       routes.home(),
       routes.billsList(),
       routes.gikaiSessions(),
+      routes.finance(),
       routes.terms(),
       routes.privacy(),
       routes.developers(),

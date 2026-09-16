@@ -17,7 +17,16 @@ describe("DesktopNavigation", () => {
       ["トップ", "/"],
       ["議案を検索する", "/bills"],
       ["定例会の一覧", "/gikai"],
+      ["予算と決算を見る", "/finance"],
     ]);
+  });
+
+  it("財政ページでも現在のセクションを示す", () => {
+    render(<DesktopNavigation pathname="/finance/2026" />);
+
+    expect(
+      screen.getByRole("link", { name: "予算と決算を見る" })
+    ).toHaveAttribute("aria-current", "page");
   });
 
   it("現在のセクションを示す", () => {
