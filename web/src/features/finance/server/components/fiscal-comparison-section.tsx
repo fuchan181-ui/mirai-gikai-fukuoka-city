@@ -4,15 +4,12 @@ import {
   type FiscalComparison,
   fiscalComparisonDescription,
 } from "../../shared/utils/build-fiscal-comparison";
-import {
-  barWidthPercent,
-  maxShareAmount,
-  partialCoverageStages,
-} from "../../shared/utils/fiscal-comparison-display";
+import { partialCoverageStages } from "../../shared/utils/fiscal-comparison-display";
 import {
   formatSharePercent,
   formatYenWithUnits,
 } from "../../shared/utils/format-yen";
+import { FiscalCompositionCharts } from "./fiscal-composition-charts";
 import { FiscalStageBadge } from "./fiscal-stage-badge";
 
 type FiscalComparisonSectionProps = {
@@ -29,7 +26,7 @@ type FiscalComparisonSectionProps = {
 /**
  * 款ごとの金額を、当初予算から決算まで段階をまたいで1つの表に並べる。
  * どの額も資料から取れた分だけを出し、無い額は 0円 と書かず「—」で残す。
- * 棒は読み上げでは意味を持たないため装飾として扱い、値は表で伝える。
+ * 配分は面の大きさで伝え、金額そのものは表で伝える。
  */
 export function FiscalComparisonSection({
   sectionId,
@@ -55,8 +52,6 @@ export function FiscalComparisonSection({
 
   const description = fiscalComparisonDescription(comparison);
   const shareStageLabel = FISCAL_COMPARISON_STAGE_LABELS[comparison.shareStage];
-  // 棒の長さは構成比ではなく額から出す。合計が未公開の年度でも比べられる。
-  const maxAmount = maxShareAmount(comparison);
   const partialStages = partialCoverageStages(comparison);
   const hasUndisclosedAmount = comparison.rows.some((row) =>
     comparison.stages.some((stage) => row.amounts[stage] === null)
@@ -88,50 +83,7 @@ export function FiscalComparisonSection({
         ) : null}
       </div>
 
-      <div className="space-y-3">
-        <h3 className="text-base font-bold text-mirai-text">
-          {shareStageLabel}の内訳
-        </h3>
-        <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          {shareStageLabel}
-          の額が大きい順に並べています。棒の長さは、いちばん大きい項目を基準にした相対的な長さです。
-        </p>
-        <ul className="grid gap-x-8 gap-y-4 rounded-xl border bg-card p-5 shadow lg:grid-cols-2">
-          {comparison.rows.map((row) => (
-            <li key={row.classificationKey} className="space-y-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
-                <span className="font-medium text-mirai-text">{row.label}</span>
-                <span className="text-mirai-text-secondary">
-                  {formatOrUndisclosed(row.amounts[comparison.shareStage])}
-                  <span className="ml-3 text-muted-foreground">
-                    {formatSharePercent(row.sharePercent)}
-                  </span>
-                </span>
-              </div>
-              {row.description ? (
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  {row.description}
-                </p>
-              ) : null}
-              {/* 棒は表の補助。読み上げには出さない */}
-              <div
-                aria-hidden
-                className="h-3 w-full overflow-hidden rounded-full bg-mirai-surface-grouped"
-              >
-                <div
-                  className="h-full rounded-full bg-primary-accent"
-                  style={{
-                    width: `${barWidthPercent(
-                      row.amounts[comparison.shareStage],
-                      maxAmount
-                    )}%`,
-                  }}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <FiscalCompositionCharts comparison={comparison} />
 
       {partialStages.length > 0 ? (
         <div className="rounded-xl border border-mirai-border bg-mirai-surface p-4 text-sm leading-relaxed text-mirai-text-note">
@@ -203,6 +155,11 @@ export function FiscalComparisonSection({
               >
                 <th scope="row" className="p-3 font-medium">
                   {row.label}
+                  {row.description ? (
+                    <span className="mt-1 block text-xs font-normal leading-relaxed text-muted-foreground">
+                      {row.description}
+                    </span>
+                  ) : null}
                 </th>
                 {comparison.stages.map((stage) => (
                   <td key={stage} className="p-3 text-right tabular-nums">

@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildFiscalComparison } from "./build-fiscal-comparison";
 import { buildFiscalPlainSummary } from "./build-fiscal-plain-summary";
 import {
-  amountSet as set,
   expenditure2024,
   expenditure2026Proposed,
   line,
   revenue2024,
+  amountSet as set,
 } from "./fiscal-test-fixtures";
 
 describe("buildFiscalPlainSummary", () => {

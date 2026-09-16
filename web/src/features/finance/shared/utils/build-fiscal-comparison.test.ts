@@ -6,10 +6,10 @@ import {
   largestRowOf,
 } from "./build-fiscal-comparison";
 import {
-  amountSet as set,
   expenditure2024Sources,
   expenditure2026ProposedSources,
   line,
+  amountSet as set,
 } from "./fiscal-test-fixtures";
 
 describe("buildFiscalComparison", () => {
