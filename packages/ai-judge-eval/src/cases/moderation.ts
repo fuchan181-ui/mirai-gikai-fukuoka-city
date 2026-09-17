@@ -113,6 +113,17 @@ export const MODERATION_CASES: ModerationCase[] = [
     }),
   },
   {
+    id: "ng-personal-info-address-only",
+    note: "氏名がなくても住所だけで個人が特定できる情報の開示",
+    expected: "ng",
+    covers: ["personal_info"],
+    input: buildInput({
+      title: "ごみの放置について",
+      content:
+        "○○町1-2-3の家の前に、ごみが何日も置きっぱなしになっています。あの住所の住人に直接注意してほしいです。名前は知りませんが、夜に車で帰ってくる人です。",
+    }),
+  },
+  {
     id: "ng-illegal-activity",
     note: "違法行為の助長",
     expected: "ng",
@@ -200,14 +211,25 @@ export const MODERATION_CASES: ModerationCase[] = [
     }),
   },
   {
-    id: "ng-ip-infringement",
-    note: "著作物の無断転載（知的財産権の侵害）",
-    expected: "ng",
+    id: "clean-rights-inquiry",
+    note: "著作権処理を問いただす意見。短い一節への言及だけで、転載はしていない（重要な境界）",
+    expected: "ok",
     covers: ["ip_infringement"],
     input: buildInput({
       title: "市のPR動画について",
       content:
         "市のPR動画は、有名なアニメの主題歌の歌詞をそのまま使っていました。著作権の手続きをしたのか説明してください。歌詞は「♪夜の街を駆け抜けて〜」から始まる部分です。",
+    }),
+  },
+  {
+    id: "ng-copyright-reproduction",
+    note: "著作物の無断転載。他人の文章をまとまった量そのまま貼っている",
+    expected: "ng",
+    covers: ["ip_infringement"],
+    input: buildInput({
+      title: "市の対応について思うこと",
+      content:
+        "地元紙のコラムに納得がいかないので、全文をここにそのまま貼っておきます。許諾は取っていません。「春の光が議場の窓に差し込むころ、職員たちは今日も書類に向き合う。机の上には、市民から届いた一枚のはがきが置かれていた。はがきの主は、昨年の台風で屋根を失った七十代の女性だった。彼女はこう書いていた。『屋根は直りましたが、心の傷はまだ直りません』。職員はその一文を読み、しばらく動けなくなったという。」この調子で話は最後まで続き、市の対応を褒めて終わります。私はこの結論には納得できません。",
     }),
   },
   {
@@ -234,6 +256,18 @@ export const MODERATION_CASES: ModerationCase[] = [
   },
 
   // ── 注意喚起と判定されるべきケース ──
+  {
+    id: "clean-former-role-mention",
+    note: "過去の役職への言及。公的な立場で発言しているわけではない（重要な境界）",
+    expected: "ok",
+    covers: ["impersonation"],
+    input: buildInput({
+      title: "議案の審議について",
+      content:
+        "以前は教育委員を務めていました。当時の経験から言うと、審議の進め方が変わることには不安があります。現場の意見をもっと聞いてから決めてほしいです。",
+      roleDescription: "沼津市在住の元教育委員",
+    }),
+  },
   {
     id: "warning-insensitive",
     note: "不謹慎な内容",

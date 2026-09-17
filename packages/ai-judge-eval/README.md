@@ -17,6 +17,11 @@ Phase 0 の目的は「置き換える」ことではなく、**置き換える�
 OpenAI 版は**本番と同一の経路**（同じプロンプト・スキーマ・モデル・閾値）を通す。
 比較の基準側なので、こちらの実装は変更しないこと。
 
+モデルは本番と同じ定数（`DEFAULT_MODERATION_MODEL` / `DEFAULT_CONTENT_RICHNESS_MODEL`、
+`packages/shared/src/ai/models.ts`）を既定で使う。別のモデルで測る場合は
+`--openai-model` で上書きする。**OpenAI 側と TypeSafe 側はモデル体系が違う**ため、
+上書きフラグは判定器ごとに分かれている（`--openai-model` / `--typesafe-model`）。
+
 ただし本番は Vercel AI Gateway 経由、このハーネスは OpenAI へ直接リクエストする。
 判定結果は同じ条件で比較できるが、**絶対レイテンシ・実費は本番と一致しない**
 （相対比較の指標として読むこと）。
@@ -24,6 +29,28 @@ OpenAI 版は**本番と同一の経路**（同じプロンプト・スキーマ
 TypeSafe 版の `severity` はカテゴリ単位で決まるため、同じカテゴリの中の強弱
 （例: 実名を出した政策批判と、実名での人格攻撃）はカテゴリではなく
 `noul` の `criteria.true` / `criteria.false` の記述で切り分ける。
+
+## プロンプトの構造化（公式ドキュメント準拠）
+
+TypeSafe は `instructions` と `criteria` に JSON 構造を渡せる（`EntryType` =
+`string | object | array | null`）。公式ドキュメントの
+[Advanced: structure](https://docs.typesafe.ai/primitives/advanced) と
+[How to build with System One](https://docs.typesafe.ai/concepts/how-to-build-with-system-one)
+に従い、このハーネスでは次の形に揃えている。
+
+| 用途 | 形 |
+| :-- | :-- |
+| Noul（モデレーション） | `instructions: { question, focus }` / `criteria: { true: { what, examples }, false: { what, examples } }` |
+| Score（情報充実度） | `instructions: { question, note }` / `criteria: [{ summary, signals }]` |
+| state の参照 | `` `summary` ``・`` `opinions` ``・`` `conversation` `` のようにバッククォートで path を指す |
+| 共通の前提 | 判定ポリシーは state に 1 か所だけ置く（`MODERATION_EVALUATION_POLICY`） |
+| 粒度 | 1 問 1 判定に分解する。モデレーションは 13 カテゴリを別々の `noul` にする |
+
+**criteria の例文は評価ケース本文から独立させること。** 例文に評価ケースの
+焼き直しを書くと、モデルは判定ではなく「書いてある答え」を読めてしまい、一致率が
+実データでの精度を何も語らなくなる。`src/judges/criteria-examples.test.ts` が
+全例文と、全ケースの `summary`・`opinions`・ユーザー発話の最長共通部分文字列を
+計算し、9 文字以上で落とす。
 
 ## 評価セットの設計方針
 
@@ -57,7 +84,12 @@ pnpm --filter @mirai-gikai/ai-judge-eval eval -- --dry-run
 
 # モデレーションだけ、両判定器で 3 回ずつ
 pnpm --filter @mirai-gikai/ai-judge-eval eval -- --only=moderation --repeat=3 \
+  --openai-model=openai/gpt-5.6-luna \
   --out=docs/typesafe-phase0-$(date +%Y%m%d).md
+
+# OpenAI 側のモデルだけ差し替えて比較する（TypeSafe 側は既定のまま）
+pnpm --filter @mirai-gikai/ai-judge-eval eval -- \
+  --openai-model=openai/gpt-5.6-luna
 
 # TypeSafe 側だけ
 pnpm --filter @mirai-gikai/ai-judge-eval eval -- --judge=typesafe
@@ -75,7 +107,8 @@ pnpm --filter @mirai-gikai/ai-judge-eval eval -- --judge=typesafe
 
 `--out=<path>.md` を指定すると、同じディレクトリに `<path>.json` も書き出す。
 JSON には**判定器の完全な出力**（カテゴリ別確率・次元別スコア・usage・レイテンシ）が
-入るので、閾値や重みを変えたときに再推論せず再計算できる。
+入るので、閾値や重みを変えたときに再推論せず再計算できる。JSON の `version` は
+出力形式の版で、フィールドの意味や構成を変えたときに上げる（現在は 2）。
 
 ## 出力の読み方
 
@@ -126,16 +159,71 @@ JSON には**判定器の完全な出力**（カテゴリ別確率・次元別�
 満たさない場合は、閾値・severity・カテゴリ分割の粒度を見直して再測定する。
 **カテゴリごとの確率が取れるので、閾値の調整に再推論は要らない**のがこの分解の利点。
 
+## 測定結果（2026-09-18、`jev-1.13.0` / `openai/gpt-5.6-luna`、`--repeat=3`）
+
+モデレーション 21 件・情報充実度 5 件。モデレーションの期待ラベルは
+「著作権処理を問いただす意見は `ok`、他人の文章をまとまった量そのまま貼るのは `ng`」
+「過去の役職への言及は `ok`、公的な立場で発言していると主張するのは `warning`」
+として付け直し、例文の漏洩を断った**うえで**測った値。
+
+| 指標 | OpenAI luna | TypeSafe |
+| :-- | :-- | :-- |
+| モデレーション一致率 | 76.2% (16/21) | **100.0% (21/21)** |
+| 重大な見逃し（ng→ok） | 0 件 | **0 件** |
+| 過検知（ok→ng） | 2 件 | **0 件** |
+| 判定のぶれ（3 回反復） | 2/21 ケース | **0/21 ケース** |
+| レイテンシ中央値 | 2298ms | **249ms** |
+| 情報充実度のレベル完全一致 | 80.0% (4/5) | 60.0% (3/5) |
+| 情報充実度の ±1 レベル以内 | 100.0% | 100.0% |
+| 情報充実度のバイアス | -0.20 レベル | +0.00 レベル |
+| 情報充実度のぶれ | 標準偏差 平均 1.4 点 | **0.0 点** |
+| OpenAI 分の推定コスト | $0.054 | — |
+| TypeSafe 分のコスト | — | 不明（単価未登録） |
+
+読めたこと:
+
+- **カテゴリ別 `noul` + 非対称閾値は、単一スコアより明確に強い。** OpenAI 版が
+  取り違えた 5 件（`ng-naming-personal-attack`・`ng-misinformation`・
+  `ng-copyright-reproduction` の見逃しと、`clean-rights-inquiry`・
+  `clean-former-role-mention` の過検知）を TypeSafe 版はすべて正しく判定し、
+  ok ケースを 1 件も落としていない
+- **カテゴリの境界は criteria の言い方で決まる。** 著作権は「短い引用や権利処理を
+  問う意見は該当しない」、なりすましは「過去の役職への言及は該当しない」と
+  false 側に書くことで、紛らわしい境界事例をどちらも正しく捌いている
+- **確信度が低いケースだけが期待ラベルとずれる。** 情報充実度でずれた 2 件は
+  確信度 0.62 / 0.71、一致した 3 件は 0.97〜1.00。確信度をトリアージに使えば
+  「低確信度だけ人手で見る」「低確信度だけ OpenAI に回す」が組める
+- 情報充実度のレベル完全一致は OpenAI 版に劣るが、**±1 レベル以内は両者 100%**で、
+  バイアスは 0。5 件という標本ではレベルの 1 段差を精度差と呼ばない
+
+## 残課題
+
+- **TypeSafe の単価が `model-pricing.ts` に未登録**。コスト基準だけが未判定のまま
+  なので、Phase 1 の前に課金体系を確認して同ファイルへ足す
+- **ng 閾値には下限がある。** 現在 0.35。0.30 まで下げると
+  `clean-strong-opposition`（水道料金改定への強い反対）を `ng` にしてしまう。
+  つまり「1 件の誤りに合わせて閾値を下げる」調整幅は残っておらず、
+  閾値を触るなら過検知とのトレードオフを測り直す必要がある
+- **情報充実度の期待ラベルは 5 件しかない。** レベルの 1 段差（レベル 3 と 4 など）は
+  基準の文言上どちらとも読める。ラベルを TypeSafe の出力に寄せて直すのは
+  答え合わせなので禁止。ケースを増やして境界の分布を見るのが正しい順序
+- **本番の既定モデルは `gpt-5.2`**（`DEFAULT_MODERATION_MODEL` /
+  `DEFAULT_CONTENT_RICHNESS_MODEL`）。このハーネスは `--openai-model` で
+  `openai/gpt-5.6-luna` を指定して測っている。本番の既定を変えるかは別 PR で判断する
+
 ## この評価セットの限界
 
-- モデレーション 18 件（本番プロンプトの 13 カテゴリをすべて 1 件以上含む）・
-  充実度 5 件。**合否を分けるゲートとしては機能するが、
-  精度の推定値としては標本が小さい**。採用後は実データでの継続監視が必要。
+- モデレーション 21 件（本番プロンプトの 13 カテゴリをすべて 1 件以上含み、
+  境界事例として著作権の問い合わせと無断転載、過去の役職への言及と公的な立場の
+  主張、氏名つきと住所のみの個人情報を対で含む）・充実度 5 件。
+  **合否を分けるゲートとしては機能するが、精度の推定値としては標本が小さい**。
+  採用後は実データでの継続監視が必要。
 - ケースは沼津市議会の文脈で書いている。他自治体に展開する際は言い回しの
   再確認が必要。
 - TypeSafe の単価が `model-pricing.ts` に未登録のため、コスト比較は実行後に
   手動で突き合わせる必要がある（トークン数は記録される）。
-- 日本語の判定性能は未検証。ここを測るのが Phase 0 の主目的。
+- 日本語の判定性能を検証できたのはこの 26 件に対してであり、言い回しの分布が
+  実データと一致する保証はない。
 
 ## SDK のバージョンについて
 

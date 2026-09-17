@@ -6,6 +6,10 @@ import type { JudgeCaseInput } from "./input";
  * レベル定義は `@mirai-gikai/shared/content-richness/instructions` の
  * スコアリング基準（0-19 / 20-39 / 40-59 / 60-79 / 80-100）をそのまま使う。
  * 期待値は既存 LLM の出力ではなく、その基準を読んで人手で付けた正解ラベル。
+ *
+ * ラベルは判定結果に合わせて動かさない。レベルの 1 段差（レベル 2 と 3 など）は
+ * 基準の文言上どちらとも読めるため、出力に寄せて直すと答え合わせになる。
+ * 判定が割れるケースは note に「境界」と明記し、±1 レベル以内で評価する。
  */
 export type RichnessCaseInput = JudgeCaseInput;
 
@@ -76,7 +80,7 @@ export const RICHNESS_CASES: RichnessCase[] = [
   },
   {
     id: "rich-3-rich",
-    note: "主要な論点が明確で一定の具体性と提案がある",
+    note: "主要な論点が明確で一定の具体性と提案がある（レベル3/4の境界）",
     expected: 3,
     input: buildInput({
       title: "子育て支援の拡充は必要だが財源の説明が足りない",
@@ -98,7 +102,7 @@ export const RICHNESS_CASES: RichnessCase[] = [
   },
   {
     id: "rich-1-somewhat-thin",
-    note: "意見が抽象的で検討に活かしづらい",
+    note: "意見が抽象的で検討に活かしづらい（レベル0/1の境界）",
     expected: 1,
     input: buildInput({
       title: "もっと良くしてほしい",

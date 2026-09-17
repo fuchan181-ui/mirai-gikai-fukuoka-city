@@ -5,6 +5,7 @@ import {
   toRichnessLevel,
 } from "../cases/richness";
 import { levelToScore } from "../metrics";
+import { stringList } from "./entry-values";
 import { buildJudgeState } from "./state";
 import type { Judge, JudgeRun, RichnessJudgeOutput } from "./types";
 
@@ -13,11 +14,44 @@ import type { Judge, JudgeRun, RichnessJudgeOutput } from "./types";
  * そのまま Score の criteria にしたもの。低い方から並べる。
  */
 export const RICHNESS_LEVEL_CRITERIA = [
-  "不足 — ほとんど有用な情報が得られていない",
-  "やや不足 — 意見が抽象的で、議案の検討に活用しづらい",
-  "普通 — 基本的な意見は述べられているが、具体性や深掘りが不足",
-  "充実 — 主要な論点が明確で、一定の具体性・提案がある",
-  "非常に充実 — 具体的な事例・数値・影響分析・改善提案が豊富に含まれている",
+  {
+    summary: "不足 — ほとんど有用な情報が得られていない",
+    signals: stringList(
+      "議案について具体的な言及がほとんどない",
+      "意見として読み取れる内容がない"
+    ),
+  },
+  {
+    summary: "やや不足 — 意見が抽象的で、議案の検討に活用しづらい",
+    signals: stringList(
+      "賛成・反対の結論は述べられているが、理由が示されていない",
+      "具体的な事例・数値・場所が出てこない"
+    ),
+  },
+  {
+    summary: "普通 — 基本的な意見は述べられているが、具体性や深掘りが不足",
+    signals: stringList(
+      "意見とその理由は述べられている",
+      "具体的な場所・対象・数値はほとんど出てこない",
+      "改善の求めが「直してほしい」のような要望にとどまる"
+    ),
+  },
+  {
+    summary: "充実 — 主要な論点が明確で、一定の具体性・提案がある",
+    signals: stringList(
+      "論点が明確に整理されている",
+      "具体的な場所・対象・数値のいずれかが示されている",
+      "改善の求めが具体的な手段や代替案まで踏み込んでいる"
+    ),
+  },
+  {
+    summary:
+      "非常に充実 — 具体的な事例・数値・影響分析・改善提案が豊富に含まれている",
+    signals: stringList(
+      "具体的な事例や数値が豊富にある",
+      "暮らし・地域への影響と改善提案の両方がある"
+    ),
+  },
 ] as const;
 
 /**
@@ -157,6 +191,14 @@ export function composeRichnessFromAnswers(
 
 /**
  * 4 次元を 1 リクエストでまとめて Score し、total はコード側で合成する。
+ *
+ * `criteria` は公式ドキュメントの「Structured Score levels」に従い
+ * `{ summary, signals }` の構造で書く（公式の Score 例は instructions を
+ * `{ question, note }` とするので、キー名もそれに合わせている）。
+ *
+ * `signals` は既存プロンプトのスコアリング基準の言葉を割り算せずに対応させる。
+ * 基準に無い数量（「〜が1つ以上ある」など）を足すと、その条件を満たすだけの
+ * 意見が上のレベルに寄り、過大評価の癖になる。
  */
 export function createTypeSafeRichnessJudge(options: {
   apiKey: string;
@@ -169,7 +211,10 @@ export function createTypeSafeRichnessJudge(options: {
     RICHNESS_DIMENSIONS.map((dimension) => [
       dimension.key,
       score(
-        `このインタビューの「${dimension.label}」（${dimension.description}）はどの水準か`,
+        {
+          question: `\`summary\`・\`opinions\`・\`conversation\` は「${dimension.label}」の観点でどの水準か`,
+          note: dimension.description,
+        },
         RICHNESS_LEVEL_CRITERIA
       ),
     ])

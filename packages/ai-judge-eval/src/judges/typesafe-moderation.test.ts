@@ -19,6 +19,17 @@ describe("MODERATION_CATEGORIES", () => {
     );
     expect(severities).toEqual(new Set(["ng", "warning"]));
   });
+
+  it("全カテゴリが構造化された instructions と criteria を持つ", () => {
+    for (const category of MODERATION_CATEGORIES) {
+      expect(category.instructions.question.length).toBeGreaterThan(0);
+      expect(category.instructions.focus.length).toBeGreaterThan(0);
+      for (const side of ["true", "false"] as const) {
+        expect(category.criteria[side].what.length).toBeGreaterThan(0);
+        expect(category.criteria[side].examples.length).toBeGreaterThan(0);
+      }
+    }
+  });
 });
 
 describe("combineCategoryProbabilities", () => {
