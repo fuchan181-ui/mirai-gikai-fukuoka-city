@@ -22,7 +22,7 @@ import { runIngest, type IngestMode } from "@mirai-gikai/numazu-ingest/ingest";
  *   tsx src/main.ts --mode=backfill                              # 未再抽出を全議案で処理
  *   tsx src/main.ts --mode=backfill --bill-id=<uuid>             # 指定議案の未再抽出のみ
  *   tsx src/main.ts --mode=backfill --bill-id=<uuid> --scope=all # 指定議案を全件やり直し
- *   tsx src/main.ts --mode=backfill --model=openai/gpt-5.2       # 使用モデルを指定（省略時は既定）
+ *   tsx src/main.ts --mode=backfill --model=openai/gpt-5.6-luna  # 使用モデルを指定（省略時は既定）
  *   tsx src/main.ts --mode=tag-backfill                          # タグ未抽出の意見を全議案で処理
  *   tsx src/main.ts --mode=tag-backfill --bill-id=<uuid>         # 指定議案のタグ未抽出のみ
  *   tsx src/main.ts --mode=tag-backfill --bill-id=<uuid> --scope=all # 指定議案のタグを全件やり直し

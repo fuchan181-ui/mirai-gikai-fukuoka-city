@@ -85,10 +85,13 @@ export async function handleConfigGeneration({
     console.error("LLM generation error:", error);
   };
 
+  // 生成ステージごとに分岐するが、モデルは同じものを使う
+  const model = AI_MODELS.gpt5_6_luna;
+
   const result =
     stage === "default_questions"
       ? streamText({
-          model: AI_MODELS.gpt5_2,
+          model,
           system: systemPrompt,
           messages: modelMessages,
           output: Output.object({ schema: defaultQuestionsGenerationSchema }),
@@ -96,14 +99,14 @@ export async function handleConfigGeneration({
         })
       : stage === "theme_proposal"
         ? streamText({
-            model: AI_MODELS.gpt5_2,
+            model,
             system: systemPrompt,
             messages: modelMessages,
             output: Output.object({ schema: themeProposalSchema }),
             onError,
           })
         : streamText({
-            model: AI_MODELS.gpt5_2,
+            model,
             system: systemPrompt,
             messages: modelMessages,
             output: Output.object({ schema: questionProposalSchema }),

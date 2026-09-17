@@ -53,9 +53,18 @@ export const DEFAULT_INTERVIEW_CHAT_MODEL = AI_MODELS.gpt5_6_luna;
 
 /** AIチャット（議案ページ・トップ）のデフォルトモデル */
 export const DEFAULT_CHAT_MODEL = AI_MODELS.gpt5_6_luna;
+/*
+ * 判定系タスクのデフォルトモデルは `gpt-5.6-luna` に統一する。
+ *
+ * 旧既定の `gpt-5.2` は上流がタスクごとに既定を分離した際の値で、
+ * 本サービスで使うモデルとしては許可されていない。判定系は入力が
+ * 長く呼び出し回数も多いため、単価が安い点も選定理由になる
+ * （単価は `ai/model-pricing.ts` を参照）。TypeSafe 版の判定との
+ * 比較測定（`packages/ai-judge-eval/`）も同じモデルで行った。
+ */
 /** モデレーション評価のデフォルトモデル */
-export const DEFAULT_MODERATION_MODEL = AI_MODELS.gpt5_2;
+export const DEFAULT_MODERATION_MODEL = AI_MODELS.gpt5_6_luna;
 /** コンテンツ充実度評価のデフォルトモデル */
-export const DEFAULT_CONTENT_RICHNESS_MODEL = AI_MODELS.gpt5_2;
+export const DEFAULT_CONTENT_RICHNESS_MODEL = AI_MODELS.gpt5_6_luna;
 /** 意見バックフィル（再抽出）のデフォルトモデル */
-export const DEFAULT_OPINION_BACKFILL_MODEL = AI_MODELS.gpt5_2;
+export const DEFAULT_OPINION_BACKFILL_MODEL = AI_MODELS.gpt5_6_luna;
