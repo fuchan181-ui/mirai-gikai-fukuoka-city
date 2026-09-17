@@ -93,12 +93,12 @@ export function buildModerationJudge(
     case "openai":
       return createOpenAiModerationJudge({
         apiKey: requireApiKey("OPENAI_API_KEY", kind),
-        modelName: options.model ?? undefined,
+        modelName: options.openaiModel ?? undefined,
       });
     case "typesafe":
       return createTypeSafeModerationJudge({
         apiKey: requireApiKey("TYPESAFE_API_KEY", kind),
-        modelName: options.model ?? undefined,
+        modelName: options.typesafeModel ?? undefined,
       });
     default:
       return assertNeverJudgeKind(kind);
@@ -115,12 +115,12 @@ export function buildRichnessJudge(
     case "openai":
       return createOpenAiRichnessJudge({
         apiKey: requireApiKey("OPENAI_API_KEY", kind),
-        modelName: options.model ?? DEFAULT_CONTENT_RICHNESS_MODEL,
+        modelName: options.openaiModel ?? DEFAULT_CONTENT_RICHNESS_MODEL,
       });
     case "typesafe":
       return createTypeSafeRichnessJudge({
         apiKey: requireApiKey("TYPESAFE_API_KEY", kind),
-        modelName: options.model ?? undefined,
+        modelName: options.typesafeModel ?? undefined,
       });
     default:
       return assertNeverJudgeKind(kind);

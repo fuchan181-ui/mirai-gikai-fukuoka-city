@@ -8,8 +8,10 @@ export type Options = {
   repeat: number;
   /** markdown の書き出し先。null なら標準出力のみ */
   out: string | null;
-  /** 両判定器に渡すモデル名の上書き */
-  model: string | null;
+  /** OpenAI 判定器に渡すモデル名の上書き。null なら本番と同じ既定値 */
+  openaiModel: string | null;
+  /** TypeSafe 判定器に渡すモデル名の上書き。null なら API 側の既定モデル */
+  typesafeModel: string | null;
   /** API を呼ばず、配線だけ検証する */
   dryRun: boolean;
 };
@@ -20,7 +22,8 @@ export const USAGE = `使い方: pnpm --filter @mirai-gikai/ai-judge-eval eval -
 
   --judge=openai|typesafe|all     比較する判定器（既定: all）
   --only=moderation|richness|all  対象タスク（既定: all）
-  --model=<name>                  モデル名を上書き（両判定器に同じ名前を渡す）
+  --openai-model=<name>           OpenAI 側のモデル名を上書き（既定: 本番と同じ定数）
+  --typesafe-model=<name>         TypeSafe 側のモデル名を上書き（既定: API 既定）
   --repeat=<n>                    各ケースの実行回数（既定: 1）
   --out=<path>                    markdown をファイルにも書き出す
   --dry-run                       API を呼ばずに配線だけ検証する
@@ -54,7 +57,8 @@ export function parseArgs(argv: string[]): ParseResult {
     targets: [...TARGETS],
     repeat: 1,
     out: null,
-    model: null,
+    openaiModel: null,
+    typesafeModel: null,
     dryRun: false,
   };
 
@@ -71,9 +75,12 @@ export function parseArgs(argv: string[]): ParseResult {
       options.judges = parseChoice(flag, value, JUDGE_KINDS);
     } else if (flag === "--only") {
       options.targets = parseChoice(flag, value, TARGETS);
-    } else if (flag === "--model") {
-      if (!value) throw new Error("--model にはモデル名が必要です");
-      options.model = value;
+    } else if (flag === "--openai-model") {
+      if (!value) throw new Error("--openai-model にはモデル名が必要です");
+      options.openaiModel = value;
+    } else if (flag === "--typesafe-model") {
+      if (!value) throw new Error("--typesafe-model にはモデル名が必要です");
+      options.typesafeModel = value;
     } else if (flag === "--repeat") {
       const repeat = Number(value);
       if (!Number.isInteger(repeat) || repeat < 1) {

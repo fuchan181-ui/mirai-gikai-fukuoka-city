@@ -20,12 +20,17 @@ export type ArtifactRun = {
   output: unknown;
 };
 
+/**
+ * 出力形式の版。フィールドの意味や構成を変えたら上げる
+ * （`version: 2` でモデルの上書きを判定器ごとのフィールドに分けた）。
+ */
 export type JudgeEvalArtifact = {
-  version: 1;
+  version: 2;
   generatedAt: string;
   judges: JudgeKind[];
   targets: Target[];
-  model: string | null;
+  openaiModel: string | null;
+  typesafeModel: string | null;
   repeat: number;
   dryRun: boolean;
   runs: ArtifactRun[];
@@ -75,11 +80,12 @@ export function buildArtifact(params: {
 }): JudgeEvalArtifact {
   const { options } = params;
   return {
-    version: 1,
+    version: 2,
     generatedAt: params.generatedAt.toISOString(),
     judges: options.judges,
     targets: options.targets,
-    model: options.model,
+    openaiModel: options.openaiModel,
+    typesafeModel: options.typesafeModel,
     repeat: options.repeat,
     dryRun: options.dryRun,
     runs: params.runs,

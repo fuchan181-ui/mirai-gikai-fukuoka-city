@@ -16,7 +16,8 @@ const BASE_OPTIONS: Options = {
   targets: ["moderation", "richness"],
   repeat: 1,
   out: null,
-  model: null,
+  openaiModel: null,
+  typesafeModel: null,
   dryRun: true,
 };
 
@@ -123,12 +124,29 @@ describe("buildRichnessJudge", () => {
       const judge = buildRichnessJudge("typesafe", {
         ...BASE_OPTIONS,
         dryRun: false,
-        model: "jev-latest",
+        typesafeModel: "jev-latest",
       });
       expect(judge.id).toBe("typesafe:jev-latest");
     } finally {
       if (saved === undefined) delete process.env.TYPESAFE_API_KEY;
       else process.env.TYPESAFE_API_KEY = saved;
+    }
+  });
+
+  it("OpenAI のモデル上書きは OpenAI 判定器にだけ効く", () => {
+    const saved = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = "sk-test";
+    try {
+      const judge = buildModerationJudge("openai", {
+        ...BASE_OPTIONS,
+        dryRun: false,
+        openaiModel: "openai/gpt-5.6-luna",
+        typesafeModel: "jev-latest",
+      });
+      expect(judge.id).toBe("openai:gpt-5.6-luna");
+    } finally {
+      if (saved === undefined) delete process.env.OPENAI_API_KEY;
+      else process.env.OPENAI_API_KEY = saved;
     }
   });
 });

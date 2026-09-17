@@ -51,8 +51,24 @@ describe("parseArgs", () => {
     expect(runOptions(["--", "--dry-run"]).dryRun).toBe(true);
   });
 
-  it("--model は値を要求する", () => {
-    expect(runOptions(["--model=jev-1.13.0"]).model).toBe("jev-1.13.0");
-    expect(() => parseArgs(["--model"])).toThrow();
+  it("OpenAI と TypeSafe のモデルを別々に上書きできる", () => {
+    const options = runOptions([
+      "--openai-model=openai/gpt-5.6-luna",
+      "--typesafe-model=jev-1.13.0",
+    ]);
+    expect(options.openaiModel).toBe("openai/gpt-5.6-luna");
+    expect(options.typesafeModel).toBe("jev-1.13.0");
+    expect(() => parseArgs(["--openai-model"])).toThrow();
+    expect(() => parseArgs(["--typesafe-model"])).toThrow();
+  });
+
+  it("モデル上書きは既定で未指定にする", () => {
+    const options = runOptions([]);
+    expect(options.openaiModel).toBeNull();
+    expect(options.typesafeModel).toBeNull();
+  });
+
+  it("両判定器に同じ名前を渡す旧 --model は受け付けない", () => {
+    expect(() => parseArgs(["--model=jev-1.13.0"])).toThrow();
   });
 });

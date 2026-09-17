@@ -14,7 +14,8 @@ const OPTIONS: Options = {
   targets: ["moderation", "richness"],
   repeat: 2,
   out: "docs/out.md",
-  model: "jev-latest",
+  openaiModel: "openai/gpt-5.6-luna",
+  typesafeModel: "jev-latest",
   dryRun: false,
 };
 
@@ -107,11 +108,12 @@ describe("buildArtifact", () => {
       generatedAt,
     });
 
-    expect(artifact.version).toBe(1);
+    expect(artifact.version).toBe(2);
     expect(artifact.generatedAt).toBe("2026-09-18T00:00:00.000Z");
     expect(artifact.judges).toEqual(["openai", "typesafe"]);
     expect(artifact.repeat).toBe(2);
-    expect(artifact.model).toBe("jev-latest");
+    expect(artifact.openaiModel).toBe("openai/gpt-5.6-luna");
+    expect(artifact.typesafeModel).toBe("jev-latest");
     expect(artifact.dryRun).toBe(false);
     expect(artifact.runs).toEqual(runs);
   });

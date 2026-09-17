@@ -220,7 +220,8 @@ describe("buildReport", () => {
     targets: ["moderation"],
     repeat: 2,
     out: null,
-    model: null,
+    openaiModel: null,
+    typesafeModel: null,
     dryRun: true,
   };
 

@@ -236,7 +236,9 @@ export function buildReport(params: {
     `- 実行日時: ${params.generatedAt.toISOString()}`,
     `- 判定器: ${options.judges.join(", ")}`,
     `- 対象: ${options.targets.join(", ")}`,
-    `- モデル上書き: ${options.model ?? "なし"}`,
+    `- モデル上書き: OpenAI ${options.openaiModel ?? "なし"} / TypeSafe ${
+      options.typesafeModel ?? "なし"
+    }`,
     `- 反復回数: ${options.repeat}`,
     `- ドライラン: ${options.dryRun ? "はい（結果はダミー）" : "いいえ"}`,
     "",
