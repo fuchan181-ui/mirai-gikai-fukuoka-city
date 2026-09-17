@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  isSupportedClassificationScheme,
+  isVisibleClassificationScheme,
+  SUPPORTED_CLASSIFICATION_SCHEMES,
   SUPPORTED_EVENT_KINDS,
   SUPPORTED_MEASURES,
   toFiscalDecisionStage,
@@ -58,5 +61,29 @@ describe("toFiscalMeasure", () => {
   it("対象外の値は読み込み対象にも含めない", () => {
     expect(SUPPORTED_MEASURES).not.toContain("expenditure_budget_delta");
     expect(SUPPORTED_MEASURES).toHaveLength(4);
+  });
+});
+
+describe("isSupportedClassificationScheme", () => {
+  it("款と歳入款の scheme を表に並べる", () => {
+    expect(isSupportedClassificationScheme("purpose")).toBe(true);
+    expect(isSupportedClassificationScheme("revenue_source")).toBe(true);
+  });
+
+  it("節別集計など別の集計軸は表に並べない", () => {
+    expect(isSupportedClassificationScheme("section")).toBe(false);
+    expect(SUPPORTED_CLASSIFICATION_SCHEMES).not.toContain("section");
+  });
+});
+
+describe("isVisibleClassificationScheme", () => {
+  it("分類を持たない合計行など scheme の分からない行は残す", () => {
+    expect(isVisibleClassificationScheme(null)).toBe(true);
+    expect(isVisibleClassificationScheme("purpose")).toBe(true);
+    expect(isVisibleClassificationScheme("revenue_source")).toBe(true);
+  });
+
+  it("節別集計の行は款の表から外す", () => {
+    expect(isVisibleClassificationScheme("section")).toBe(false);
   });
 });

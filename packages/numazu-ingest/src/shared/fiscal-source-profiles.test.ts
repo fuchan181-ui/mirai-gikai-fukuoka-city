@@ -9,6 +9,7 @@ import { formatFiscalYearLabel } from "./utils/fiscal-year-label";
 const EXPECTED_YEARS_BY_SERIES: Record<string, number[]> = {
   "budget-overview-general-account": [2023, 2024, 2025, 2026],
   "budget-overview-council-expense": [2023, 2024, 2025, 2026],
+  "budget-section-summary": [2023, 2024, 2025, 2026],
   "settlement-overview": [2020, 2021, 2022, 2023, 2024],
   "major-measures-fiscal": [2020, 2021, 2022, 2023, 2024],
 };
@@ -22,7 +23,7 @@ function yearsOf(seriesCode: string): number[] {
 
 describe("fiscalSourceProfiles", () => {
   it("公開済みの全年度の公式PDFを一意に定義する", () => {
-    expect(fiscalSourceProfiles).toHaveLength(18);
+    expect(fiscalSourceProfiles).toHaveLength(22);
     expect(
       new Set(fiscalSourceProfiles.map((profile) => profile.profileKey)).size
     ).toBe(fiscalSourceProfiles.length);
@@ -74,6 +75,7 @@ describe("fiscalSourceProfiles", () => {
       new Set([
         "general_budget_2026",
         "council_budget_2026",
+        "budget_section_summary_2026",
         "settlement_overview_2024",
         "major_measures_2024",
       ])
@@ -131,6 +133,17 @@ describe("fiscalSourceProfiles", () => {
     expect(
       findFiscalSourceProfile("budget-overview-2023-council-expense")?.title
     ).toBe("令和5年度 議会費");
+    expect(
+      findFiscalSourceProfile("budget-section-summary-2025")
+    ).toMatchObject({
+      fiscalYear: 2025,
+      parserKind: "budget_section_summary_2026",
+      seriesCode: "budget-section-summary",
+      title: "令和7年度 歳出予算節別集計表",
+    });
+    expect(
+      findFiscalSourceProfile("budget-section-summary-2026")?.url
+    ).toContain("/yosan2026/gaiyousho/pdf/s-6.pdf");
     expect(
       findFiscalSourceProfile("major-measures-2020-fiscal")?.url
     ).toContain("/kessan2020/pdf_houkoku/1.pdf");

@@ -8,6 +8,7 @@ import type {
   FiscalYearAmounts,
 } from "../../shared/types/fiscal-amount";
 import {
+  isVisibleClassificationScheme,
   SUPPORTED_EVENT_KINDS,
   SUPPORTED_MEASURES,
   toFiscalDecisionStage,
@@ -40,10 +41,11 @@ type AmountRevisionRow = {
   null_reason: string | null;
 };
 
-/** 款の canonical key と表示名。 */
+/** 款の canonical key・表示名と、集計軸を表す scheme。 */
 type ClassificationNames = {
   keyById: Map<string, string>;
   labelById: Map<string, string>;
+  schemeById: Map<string, string>;
 };
 
 /** 公開済みの年度を新しい順に返す。 */
@@ -323,6 +325,7 @@ async function findClassificationNames(
   const names: ClassificationNames = {
     keyById: new Map(),
     labelById: new Map(),
+    schemeById: new Map(),
   };
   if (classificationIds.length === 0) return names;
 
@@ -331,7 +334,7 @@ async function findClassificationNames(
     fetchAllRows((from, to) =>
       supabase
         .from("fiscal_classifications")
-        .select("id, canonical_key")
+        .select("id, canonical_key, scheme")
         .in("id", classificationIds)
         .order("id")
         .range(from, to)
@@ -363,6 +366,7 @@ async function findClassificationNames(
 
   for (const row of classificationResult.data ?? []) {
     names.keyById.set(row.id, row.canonical_key);
+    names.schemeById.set(row.id, row.scheme);
   }
   for (const row of revisionResult.data ?? []) {
     // 同じ款に複数の改訂が当たるときは、いちばん新しい改訂の表示名を使う。
@@ -386,6 +390,13 @@ function buildLinesBySetId(
     const measure = toFiscalMeasure(amount.measure);
     if (!measure) continue;
     const classificationId = amount.classification_id;
+    const classificationScheme =
+      classificationId === null
+        ? null
+        : (classificationNames.schemeById.get(classificationId) ?? null);
+    // 節別集計のような別の集計軸は款の表に混ぜない。分類を持たない合計行
+    // など、scheme が分からない行はこれまでどおり残す。
+    if (!isVisibleClassificationScheme(classificationScheme)) continue;
     const line: FiscalAmountLine = {
       classificationKey:
         classificationId === null
