@@ -42,12 +42,41 @@ const REPLAY: FixtureIds = {
   contentHash: "sha256:fiscal-apply-test-replay",
 };
 
+// 歳出予算節別集計表のように、款別とは別の集計軸（classificationScheme）を
+// 持つ資料。集計軸ごとに金額セットを分ける。
+const SECTION: FixtureIds = {
+  sourceId: "31000000-0000-0000-0000-000000000401",
+  sourceVersionId: "31000000-0000-0000-0000-000000000402",
+  runId: "31000000-0000-0000-0000-000000000403",
+  parseRunId: "31000000-0000-0000-0000-000000000404",
+  contentHash: "sha256:fiscal-apply-test-section",
+};
+
+// 同じ節別資料を新しい解析で取り込み直したときの取り込み。
+const SECTION_REPLAY: FixtureIds = {
+  sourceId: SECTION.sourceId,
+  sourceVersionId: "31000000-0000-0000-0000-000000000412",
+  runId: "31000000-0000-0000-0000-000000000413",
+  parseRunId: "31000000-0000-0000-0000-000000000414",
+  contentHash: "sha256:fiscal-apply-test-section-replay",
+};
+
+// 款別と同じ資料版（年度まで同じ）から、別の集計軸を取り込もうとする取り込み。
+const SAME_EDITION_AXIS: FixtureIds = {
+  sourceId: PRIMARY.sourceId,
+  sourceVersionId: "31000000-0000-0000-0000-000000000421",
+  runId: "31000000-0000-0000-0000-000000000422",
+  parseRunId: "31000000-0000-0000-0000-000000000423",
+  contentHash: "sha256:fiscal-apply-test-same-edition-axis",
+};
+
 const REVIEWER_ID = "31000000-0000-0000-0000-000000000099";
 const MATCHED_TARGET_ID = "31000000-0000-0000-0000-000000000098";
 const FISCAL_YEAR = 2091;
 const EARLIER_FISCAL_YEAR = 2090;
 const SERIES_CODE = "fiscal-apply-test-series";
 const SECONDARY_SERIES_CODE = "fiscal-apply-test-series-secondary";
+const SECTION_SERIES_CODE = "fiscal-apply-test-section-series";
 const TITLE = "令和73年度予算概要";
 const SOURCE_URL = "https://example.com/fiscal-apply-test.pdf";
 // 実データの款キー（welfare など）と同じキーを使うと、既に公開済みの分類が
@@ -1258,6 +1287,280 @@ describe("apply_verified_fiscal_staging()", () => {
       ${expectRaiseSql(
         `perform ${applyCallSql(SECONDARY)}`,
         "published fiscal document edition cannot be replaced in place"
+      )}
+      rollback;
+    `);
+
+    expect(output).toContain("ROLLBACK");
+  });
+
+  it("款別とは別の集計軸を独立した金額セットとして公開する", () => {
+    const output = executeInTestDatabase(`
+      begin;
+      ${preparedBatchSql(PRIMARY)}
+      select ${approveCallSql(PRIMARY)};
+      select ${applyCallSql(PRIMARY)};
+      ${ingestionFixtureSql(SECTION)}
+      ${saveBatchSql(SECTION, [
+        documentMetadataRow({ seriesCode: SECTION_SERIES_CODE }),
+        amountRow({
+          sourceRecordKey: "amount:section:salary",
+          payload: {
+            classificationScheme: "section",
+            classificationKey: "fiscal_apply_test_salary",
+            sourceClassificationLabel: "給料",
+          },
+        }),
+        amountRow({
+          sourceRecordKey: "amount:section:travel",
+          payload: {
+            classificationScheme: "section",
+            classificationKey: "fiscal_apply_test_travel",
+            sourceClassificationLabel: "旅費",
+            amountYen: "500",
+          },
+        }),
+      ])}
+      ${verifyRecordsSql(SECTION)}
+      select ${approveCallSql(SECTION)};
+      do $block$
+      declare
+        v_result jsonb;
+      begin
+        select ${applyCallSql(SECTION)} into v_result;
+        if (v_result ->> 'amountSetCount')::integer <> 1
+          or (v_result ->> 'amountCount')::integer <> 2 then
+          raise exception 'unexpected apply result %', v_result;
+        end if;
+        -- 款別の公開済み金額セットは置き換えず、節別のセットを並べる。
+        if (
+          select count(*)
+          from public.fiscal_amount_set_revisions revision
+          where revision.publication_state = 'published'
+            and revision.fiscal_year = ${FISCAL_YEAR}
+        ) <> 2 then
+          raise exception 'published amount set was not split by axis';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_amount_sets amount_set
+          where amount_set.amount_set_key = 'section'
+            and amount_set.fiscal_event_id = (
+              select primary_set.fiscal_event_id
+              from public.fiscal_amount_sets primary_set
+              join public.fiscal_amount_set_revisions primary_revision
+                on primary_revision.amount_set_id = primary_set.id
+              where primary_set.amount_set_key = 'primary'
+                and primary_revision.fiscal_year = ${FISCAL_YEAR}
+            )
+        ) <> 1 then
+          raise exception 'section amount set is missing';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_amount_set_revisions revision
+          join public.fiscal_amount_sets amount_set
+            on amount_set.id = revision.amount_set_id
+          where amount_set.amount_set_key = 'primary'
+            and revision.publication_state = 'published'
+            and revision.fiscal_year = ${FISCAL_YEAR}
+            and revision.revision_number = 1
+        ) <> 1 then
+          raise exception 'primary amount set revision was replaced';
+        end if;
+        -- 節別の金額にも、公開できる検証済みの根拠が付く。
+        if (
+          select count(*)
+          from public.fiscal_amount_revisions amount_revision
+          join public.fiscal_amount_set_revisions revision
+            on revision.id = amount_revision.amount_set_revision_id
+           and revision.publication_state = 'published'
+          join public.fiscal_amount_sets amount_set
+            on amount_set.id = revision.amount_set_id
+           and amount_set.amount_set_key = 'section'
+          join public.fiscal_amount_evidence evidence
+            on evidence.amount_revision_id = amount_revision.id
+           and evidence.qa_status = 'verified'
+          where amount_revision.amount_yen = 1000
+        ) <> 1 then
+          raise exception 'section amount evidence is missing';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_classification_revisions revision
+          join public.fiscal_classifications classification
+            on classification.id = revision.classification_id
+          where classification.canonical_key = 'fiscal_apply_test_salary'
+            and classification.scheme = 'section'
+            and revision.publication_state = 'published'
+            and revision.valid_from_fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'section classification was not published';
+        end if;
+      end;
+      $block$;
+      set constraints all immediate;
+      rollback;
+    `);
+
+    expect(output).toContain("ROLLBACK");
+  });
+
+  it("同じグループに別の集計軸を混ぜたバッチを拒否する", () => {
+    const output = executeInTestDatabase(`
+      begin;
+      ${ingestionFixtureSql(SECTION)}
+      ${saveBatchSql(SECTION, [
+        documentMetadataRow({ seriesCode: SECTION_SERIES_CODE }),
+        amountRow(),
+        amountRow({
+          sourceRecordKey: "amount:section:salary",
+          payload: {
+            classificationScheme: "section",
+            classificationKey: "fiscal_apply_test_salary",
+            sourceClassificationLabel: "給料",
+          },
+        }),
+      ])}
+      ${verifyRecordsSql(SECTION)}
+      select ${approveCallSql(SECTION)};
+      ${expectRaiseSql(
+        `perform ${applyCallSql(SECTION)}`,
+        "cannot mix aggregation axes in one amount set"
+      )}
+      rollback;
+    `);
+
+    expect(output).toContain("ROLLBACK");
+  });
+
+  it("節別の資料版を取り込み直しても集計軸を分けたままにする", () => {
+    const output = executeInTestDatabase(`
+      begin;
+      ${preparedBatchSql(PRIMARY)}
+      select ${approveCallSql(PRIMARY)};
+      select ${applyCallSql(PRIMARY)};
+      ${ingestionFixtureSql(SECTION)}
+      ${saveBatchSql(SECTION, [
+        documentMetadataRow({ seriesCode: SECTION_SERIES_CODE }),
+        amountRow({
+          sourceRecordKey: "amount:section:salary",
+          payload: {
+            classificationScheme: "section",
+            classificationKey: "fiscal_apply_test_salary",
+            sourceClassificationLabel: "給料",
+          },
+        }),
+      ])}
+      ${verifyRecordsSql(SECTION)}
+      select ${approveCallSql(SECTION)};
+      select ${applyCallSql(SECTION)};
+      ${ingestionFixtureSql(SECTION_REPLAY, { reuseIngestionSource: true })}
+      ${saveBatchSql(SECTION_REPLAY, [
+        documentMetadataRow(
+          { seriesCode: SECTION_SERIES_CODE },
+          { change_kind: "unchanged", matched_target_id: MATCHED_TARGET_ID }
+        ),
+        amountRow({
+          sourceRecordKey: "amount:section:salary",
+          changeKind: "unchanged",
+          matchedTargetId: MATCHED_TARGET_ID,
+          payload: {
+            classificationScheme: "section",
+            classificationKey: "fiscal_apply_test_salary",
+            sourceClassificationLabel: "給料",
+          },
+        }),
+        amountRow({
+          sourceRecordKey: "amount:section:supplies",
+          payload: {
+            classificationScheme: "section",
+            classificationKey: "fiscal_apply_test_supplies",
+            sourceClassificationLabel: "需用費",
+            amountYen: "300",
+          },
+        }),
+      ])}
+      ${verifyRecordsSql(SECTION_REPLAY)}
+      select ${approveCallSql(SECTION_REPLAY)};
+      do $block$
+      declare
+        v_result jsonb;
+      begin
+        select ${applyCallSql(SECTION_REPLAY)} into v_result;
+        if (v_result ->> 'amountCount')::integer <> 2 then
+          raise exception 'unexpected apply result %', v_result;
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_amount_set_revisions revision
+          join public.fiscal_amount_sets amount_set
+            on amount_set.id = revision.amount_set_id
+          where amount_set.amount_set_key = 'section'
+            and revision.publication_state = 'published'
+            and revision.fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'section amount set lost its published revision';
+        end if;
+        if (
+          select count(*)
+          from public.fiscal_amount_set_revisions revision
+          join public.fiscal_amount_sets amount_set
+            on amount_set.id = revision.amount_set_id
+          where amount_set.amount_set_key = 'section'
+            and revision.publication_state = 'superseded'
+            and revision.fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'previous section revision was not superseded';
+        end if;
+        -- 取り込み直しでも款別の金額セットは触らない。
+        if (
+          select count(*)
+          from public.fiscal_amount_set_revisions revision
+          join public.fiscal_amount_sets amount_set
+            on amount_set.id = revision.amount_set_id
+          where amount_set.amount_set_key = 'primary'
+            and revision.publication_state = 'published'
+            and revision.revision_number = 1
+            and revision.fiscal_year = ${FISCAL_YEAR}
+        ) <> 1 then
+          raise exception 'primary amount set revision was replaced';
+        end if;
+      end;
+      $block$;
+      set constraints all immediate;
+      rollback;
+    `);
+
+    expect(output).toContain("ROLLBACK");
+  });
+
+  it("同じ資料版から別の集計軸を取り込むときは明示的に拒否する", () => {
+    const output = executeInTestDatabase(`
+      begin;
+      ${preparedBatchSql(PRIMARY)}
+      select ${approveCallSql(PRIMARY)};
+      select ${applyCallSql(PRIMARY)};
+      ${ingestionFixtureSql(SAME_EDITION_AXIS, { reuseIngestionSource: true })}
+      ${saveBatchSql(SAME_EDITION_AXIS, [
+        documentMetadataRow(
+          { seriesCode: SERIES_CODE },
+          { change_kind: "unchanged", matched_target_id: MATCHED_TARGET_ID }
+        ),
+        amountRow({
+          sourceRecordKey: "amount:section:salary",
+          payload: {
+            classificationScheme: "section",
+            classificationKey: "fiscal_apply_test_salary",
+            sourceClassificationLabel: "給料",
+          },
+        }),
+      ])}
+      ${verifyRecordsSql(SAME_EDITION_AXIS)}
+      select ${approveCallSql(SAME_EDITION_AXIS)};
+      ${expectRaiseSql(
+        `perform ${applyCallSql(SAME_EDITION_AXIS)}`,
+        "cannot reuse one edition occurrence across aggregation axes"
       )}
       rollback;
     `);

@@ -48,7 +48,11 @@ type ClassificationNames = {
   schemeById: Map<string, string>;
 };
 
-/** 公開済みの年度を新しい順に返す。 */
+/**
+ * 公開済みの年度を新しい順に返す。年度の詳細は款別（primary）の金額だけを
+ * 表示するため、款別の公開版がある年度に限る。節別だけがある年度を並べると、
+ * 開いても金額が無い年度ができてしまう。
+ */
 export async function findPublishedFiscalYears(): Promise<number[]> {
   const reportingScopeId = await findPublicReportingScopeId();
   if (reportingScopeId === null) return [];
@@ -57,7 +61,8 @@ export async function findPublishedFiscalYears(): Promise<number[]> {
   const result = await fetchAllRows((from, to) =>
     supabase
       .from("fiscal_amount_set_revisions")
-      .select("fiscal_year")
+      .select("fiscal_year, fiscal_amount_sets!inner(amount_set_key)")
+      .eq("fiscal_amount_sets.amount_set_key", "primary")
       .eq("reporting_scope_id", reportingScopeId)
       .in("event_kind", SUPPORTED_EVENT_KINDS)
       .eq("publication_state", "published")
@@ -173,7 +178,9 @@ export async function findPublishedFiscalYearAmounts(
 
 /**
  * 指定年度の公開済み金額セット改訂を読み、セットごとの最新改訂だけを返す。
- * 古い改訂を混ぜると、同じ金額を二重に数えてしまう。
+ * 古い改訂を混ぜると、同じ金額を二重に数えてしまう。同じイベント・議決段階に
+ * は節別集計のような別の集計軸も並ぶため、この画面が読む款別（primary）の
+ * 公開版だけを読む。
  */
 async function findLatestPublishedSetRevisions(
   fiscalYear: number,
@@ -183,9 +190,16 @@ async function findLatestPublishedSetRevisions(
   const result = await fetchAllRows((from, to) =>
     supabase
       .from("fiscal_amount_set_revisions")
-      .select(
-        "id, amount_set_id, fiscal_event_id, event_kind, revision_number, effective_on"
-      )
+      .select(`
+        id,
+        amount_set_id,
+        fiscal_event_id,
+        event_kind,
+        revision_number,
+        effective_on,
+        fiscal_amount_sets!inner (amount_set_key)
+      `)
+      .eq("fiscal_amount_sets.amount_set_key", "primary")
       .eq("reporting_scope_id", reportingScopeId)
       .in("event_kind", SUPPORTED_EVENT_KINDS)
       .eq("publication_state", "published")

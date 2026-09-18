@@ -1528,6 +1528,7 @@ export type Database = {
       }
       fiscal_amount_sets: {
         Row: {
+          amount_set_key: string
           created_at: string
           decision_stage: Database["public"]["Enums"]["fiscal_decision_stage_enum"]
           event_kind: Database["public"]["Enums"]["fiscal_event_kind_enum"]
@@ -1535,6 +1536,7 @@ export type Database = {
           id: string
         }
         Insert: {
+          amount_set_key?: string
           created_at?: string
           decision_stage: Database["public"]["Enums"]["fiscal_decision_stage_enum"]
           event_kind: Database["public"]["Enums"]["fiscal_event_kind_enum"]
@@ -1542,6 +1544,7 @@ export type Database = {
           id?: string
         }
         Update: {
+          amount_set_key?: string
           created_at?: string
           decision_stage?: Database["public"]["Enums"]["fiscal_decision_stage_enum"]
           event_kind?: Database["public"]["Enums"]["fiscal_event_kind_enum"]
