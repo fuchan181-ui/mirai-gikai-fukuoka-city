@@ -5,6 +5,7 @@ import {
   parseCouncilBudget,
   parseGeneralBudget,
 } from "./parse-budget-overview";
+import { parseBudgetSectionSummary } from "./parse-budget-section-summary";
 import { parseMajorMeasures } from "./parse-major-measures";
 import { parseSettlementOverview } from "./parse-settlement-overview";
 
@@ -19,6 +20,8 @@ export function parseFiscalDocument(params: {
       return parseGeneralBudget(text, fiscalYear);
     case "council_budget_2026":
       return parseCouncilBudget(text, fiscalYear);
+    case "budget_section_summary_2026":
+      return parseBudgetSectionSummary(text, fiscalYear);
     case "metadata_only":
       return { records: [], validationSummary: [] };
     case "settlement_overview_2024":

@@ -10,6 +10,7 @@ export type FiscalParserKind =
   | "metadata_only"
   | "general_budget_2026"
   | "council_budget_2026"
+  | "budget_section_summary_2026"
   | "settlement_overview_2024"
   | "major_measures_2024";
 
@@ -40,6 +41,7 @@ const PARSER_VERSIONS: Record<FiscalParserKind, string> = {
   metadata_only: DEFAULT_PARSER_VERSION,
   general_budget_2026: "1.1.0",
   council_budget_2026: DEFAULT_PARSER_VERSION,
+  budget_section_summary_2026: DEFAULT_PARSER_VERSION,
   settlement_overview_2024: DEFAULT_PARSER_VERSION,
   major_measures_2024: "1.1.0",
 };
@@ -154,6 +156,58 @@ export const fiscalSourceProfiles = [
     url: "https://www.city.numazu.shizuoka.jp/shisei/gyozaisei/finance/yosan2023/gaiyousho/pdf/i-1.pdf",
     expectedMediaType: "application/pdf",
     parserKind: "council_budget_2026",
+  },
+  {
+    profileKey: "budget-section-summary-2026",
+    profileVersion: PROFILE_VERSION,
+    parserName: "numazu-fiscal-budget-section-summary-2026",
+    parserVersion: PARSER_VERSIONS.budget_section_summary_2026,
+    sourceKind: "budget_overview",
+    seriesCode: "budget-section-summary",
+    fiscalYear: 2026,
+    title: "令和8年度 歳出予算節別集計表",
+    url: "https://www.city.numazu.shizuoka.jp/shisei/gyozaisei/finance/yosan2026/gaiyousho/pdf/s-6.pdf",
+    expectedMediaType: "application/pdf",
+    parserKind: "budget_section_summary_2026",
+  },
+  {
+    profileKey: "budget-section-summary-2025",
+    profileVersion: PROFILE_VERSION,
+    parserName: "numazu-fiscal-budget-section-summary-2025",
+    parserVersion: PARSER_VERSIONS.budget_section_summary_2026,
+    sourceKind: "budget_overview",
+    seriesCode: "budget-section-summary",
+    fiscalYear: 2025,
+    title: "令和7年度 歳出予算節別集計表",
+    url: "https://www.city.numazu.shizuoka.jp/shisei/gyozaisei/finance/yosan2025/gaiyousho/pdf/s-6.pdf",
+    expectedMediaType: "application/pdf",
+    parserKind: "budget_section_summary_2026",
+  },
+  {
+    profileKey: "budget-section-summary-2024",
+    profileVersion: PROFILE_VERSION,
+    parserName: "numazu-fiscal-budget-section-summary-2024",
+    parserVersion: PARSER_VERSIONS.budget_section_summary_2026,
+    sourceKind: "budget_overview",
+    seriesCode: "budget-section-summary",
+    fiscalYear: 2024,
+    title: "令和6年度 歳出予算節別集計表",
+    url: "https://www.city.numazu.shizuoka.jp/shisei/gyozaisei/finance/yosan2024/gaiyousho/pdf/s-6.pdf",
+    expectedMediaType: "application/pdf",
+    parserKind: "budget_section_summary_2026",
+  },
+  {
+    profileKey: "budget-section-summary-2023",
+    profileVersion: PROFILE_VERSION,
+    parserName: "numazu-fiscal-budget-section-summary-2023",
+    parserVersion: PARSER_VERSIONS.budget_section_summary_2026,
+    sourceKind: "budget_overview",
+    seriesCode: "budget-section-summary",
+    fiscalYear: 2023,
+    title: "令和5年度 歳出予算節別集計表",
+    url: "https://www.city.numazu.shizuoka.jp/shisei/gyozaisei/finance/yosan2023/gaiyousho/pdf/s-6.pdf",
+    expectedMediaType: "application/pdf",
+    parserKind: "budget_section_summary_2026",
   },
   {
     profileKey: "settlement-overview-2024",
