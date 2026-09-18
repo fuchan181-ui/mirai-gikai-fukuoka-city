@@ -67,12 +67,12 @@
   --color-mirai-text-close: #9f9b9b;
 
   /* Surface / Background */
-  --color-mirai-surface: #f7f4f0;
+  --color-mirai-surface: #fff0f5;
   --color-mirai-surface-light: #eeeeee;
-  --color-mirai-surface-grouped: #f2f2f7;
+ --color-mirai-surface-grouped: #fff0f5;
   --color-mirai-surface-muted: #e5e5ea;
   --color-mirai-surface-tag: #e8e8e8;
-  --color-mirai-surface-warm: #eae6dd;
+  --color-mirai-surface-warm: #fff0f5;
 
   /* Border */
   --color-mirai-border: #d2d2d2;
@@ -109,8 +109,8 @@
   --color-mirai-progress-fill: #dbd3f9;
 
   /* Gradient endpoints */
-  --color-mirai-gradient-start: #dbd3f9;
-  --color-mirai-gradient-end: #ede9fd;
+  --color-mirai-gradient-start: #ffd6e0;
+  --color-mirai-gradient-end: #fff0f5;
 
   /* 事務事業評価グレード */
   --color-grade-a: #22c55e;
@@ -125,14 +125,14 @@
 
 :root {
   --radius: 0.625rem;
-  --background: #f7f4ee;
+  --background: #fffafb;
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: #fffafb;
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #a495d6;
-  --primary-accent: #7a6cc0;
+  --primary: #f59be9;
+  --primary-accent: #e573cc;
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -149,7 +149,7 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: #fffafb;
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -239,9 +239,13 @@
     outline-offset: 2px;
   }
 
-  body {
-    @apply bg-background text-foreground;
-  }
+ body {
+
+background-color: #ffe8ee !important;
+
+@apply text-foreground;
+
+}
 }
 
 @layer components {
