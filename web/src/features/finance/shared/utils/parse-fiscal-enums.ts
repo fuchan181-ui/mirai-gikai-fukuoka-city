@@ -65,3 +65,22 @@ export const SUPPORTED_MEASURES: FiscalMeasure[] = [
   "revenue_actual",
   "expenditure_actual",
 ];
+
+/**
+ * この画面が扱う分類scheme。款（purpose）と歳入款（revenue_source）だけを
+ * 表に並べ、節別集計のような別の集計軸の行は読み込む段階で外す。
+ */
+export const SUPPORTED_CLASSIFICATION_SCHEMES = ["purpose", "revenue_source"];
+
+/** 款や歳入款として表に並べられる分類schemeかどうか。 */
+export function isSupportedClassificationScheme(scheme: string): boolean {
+  return SUPPORTED_CLASSIFICATION_SCHEMES.includes(scheme);
+}
+
+/**
+ * 款や歳入款として表に並べる分類かどうか。scheme が分からない行は、分類を
+ * 持たない合計行などなので、これまでどおり並べる。
+ */
+export function isVisibleClassificationScheme(scheme: string | null): boolean {
+  return scheme === null || isSupportedClassificationScheme(scheme);
+}
