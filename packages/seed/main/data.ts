@@ -20,27 +20,27 @@ type InterviewMessageInsert =
 type InterviewReportInsert =
   Database["public"]["Tables"]["interview_report"]["Insert"];
 
-// 定例会データ
+// 定例会データ（枚方市議会）
 export const councilSessions: CouncilSessionInsert[] = [
   {
-    name: "令和8年 第1回定例会（2・3月）",
-    slug: "r8-1",
-    council_url: "https://gikai.city.fukuoka.lg.jp/schedule/regular/",
-    start_date: "2026-02-17",
-    end_date: "2026-03-27",
+    name: "令和8年 第3回定例月議会（9月）",
+    slug: "r8-9",
+    council_url: "https://www.city.hirakata.osaka.jp/site/gikai/",
+    start_date: "2026-09-01",
+    end_date: "2026-09-30",
     is_active: true,
   },
   {
-    name: "令和7年 第4回定例会（12月）",
-    slug: "r7-4",
-    council_url: "https://gikai.city.fukuoka.lg.jp/schedule/regular/",
-    start_date: "2025-12-01",
-    end_date: "2025-12-19",
+    name: "令和8年 第2回定例月議会（6月）",
+    slug: "r8-6",
+    council_url: "https://www.city.hirakata.osaka.jp/site/gikai/",
+    start_date: "2026-06-01",
+    end_date: "2026-06-25",
     is_active: false,
   },
 ];
 
-// 会派データ（福岡市議会 2026年3月時点）
+// 会派データ（枚方市議会 2026年時点）
 export const factions: FactionInsert[] = [
   {
     name: "mirai",
@@ -49,85 +49,75 @@ export const factions: FactionInsert[] = [
     is_active: true,
   },
   {
-    name: "jimin-fukuoka",
-    display_name: "自由民主党福岡市議団",
+    name: "ishin-hirakata",
+    display_name: "大阪維新の会 枚方市議会議員団",
     sort_order: 2,
     is_active: true,
   },
   {
-    name: "komei",
-    display_name: "公明党福岡市議団",
+    name: "komei-hirakata",
+    display_name: "公明党議員団",
     sort_order: 3,
     is_active: true,
   },
   {
-    name: "fukuoka-shimin",
-    display_name: "福岡市民クラブ",
+    name: "jimin-mushozoku",
+    display_name: "自由民主党・無所属の会",
     sort_order: 4,
     is_active: true,
   },
   {
-    name: "kyosan",
-    display_name: "日本共産党福岡市議団",
+    name: "rengo-shimin",
+    display_name: "連合市民の会",
     sort_order: 5,
     is_active: true,
   },
   {
-    name: "atarashii-kaze",
-    display_name: "新しい風ふくおか",
+    name: "kyosan-hirakata",
+    display_name: "日本共産党議員団",
     sort_order: 6,
     is_active: true,
   },
   {
-    name: "ishin",
-    display_name: "日本維新の会福岡市議団",
+    name: "inochi",
+    display_name: "命を守る政治の会",
     sort_order: 7,
-    is_active: true,
-  },
-  {
-    name: "jimin-shin-fukuoka",
-    display_name: "自民党新福岡",
-    sort_order: 8,
     is_active: true,
   },
   {
     name: "mushozoku",
     display_name: "無所属",
-    sort_order: 9,
+    sort_order: 8,
     is_active: true,
   },
 ];
 
-// 委員会データ（福岡市議会 常任委員会）
+// 委員会データ（枚方市議会 常任委員会）
 export const committees: CommitteeInsert[] = [
   {
-    name: "総務財政委員会",
-    description: "総務、財政、企画、税務などについての審査",
+    name: "総務常任委員会",
+    description:
+      "危機管理、市長公室、総合政策、総務、観光にぎわい、財政などについての審査",
     sort_order: 1,
     is_active: true,
   },
   {
-    name: "教育こども委員会",
-    description: "教育、こども、保育、学校などについての審査",
+    name: "教育子育て常任委員会",
+    description: "子ども未来部、教育委員会、学校教育、子育て支援についての審査",
     sort_order: 2,
     is_active: true,
   },
   {
-    name: "経済振興委員会",
-    description: "産業、観光、農業、商工業などについての審査",
+    name: "市民福祉常任委員会",
+    description: "市民生活、保健福祉、地域包括ケア、医療などについての審査",
     sort_order: 3,
     is_active: true,
   },
   {
-    name: "福祉都市委員会",
-    description: "福祉、保健、医療、都市整備などについての審査",
+    name: "建設環境常任委員会",
+    description:
+      "都市計画、駅周辺整備、道路河川、上下水道、環境保全などについての審査",
     sort_order: 4,
-    is_active: true,
-  },
-  {
-    name: "生活環境委員会",
-    description: "環境、ごみ、水道、交通などについての審査",
-    sort_order: 5,
     is_active: true,
   },
 ];
@@ -135,60 +125,60 @@ export const committees: CommitteeInsert[] = [
 // タグデータ
 export const tags: TagInsert[] = [
   {
-    label: "まちづくり・環境",
-    description: "まちづくり、環境保護、都市計画に関する議案",
+    label: "子育て・教育",
+    description: "子育て支援、学校教育、医療費助成などに関する議案",
     featured_priority: 1,
   },
   {
-    label: "子育て・教育",
-    description: "子育て支援、教育政策、若者支援に関する議案",
+    label: "まちづくり・環境",
+    description: "駅前再整備、都市計画、環境保全、防災に関する議案",
     featured_priority: 2,
   },
   {
     label: "福祉・医療",
-    description: "福祉、医療、高齢者支援に関する議案",
+    description: "地域福祉、高齢者支援、地域包括ケアに関する議案",
     featured_priority: 3,
   },
 ];
 
 export const bills: BillInsert[] = [
   {
-    name: "福岡市子ども医療費助成条例の一部改正",
+    name: "枚方市子ども医療費助成条例の一部改正",
     status: "in_committee",
-    status_note: "文教委員会で審査中",
-    published_at: "2025-11-25T09:00:00+09:00",
+    status_note: "教育子育て常任委員会で審査中",
+    published_at: "2026-09-05T09:00:00+09:00",
     publish_status: "published",
     is_featured: true,
   },
   {
-    name: "福岡市地域包括ケアシステム推進条例",
+    name: "枚方市駅周辺再整備基本方針に基づく都市基盤整備事業",
     status: "approved",
     status_note: "本会議で可決",
-    published_at: "2025-09-15T10:00:00+09:00",
+    published_at: "2026-09-08T10:00:00+09:00",
     publish_status: "published",
     is_featured: true,
   },
   {
-    name: "福岡市公園条例の一部改正",
-    status: "rejected",
-    status_note: "本会議で否決",
-    published_at: "2025-10-01T09:00:00+09:00",
-    publish_status: "published",
-    is_featured: false,
-  },
-  {
-    name: "福岡市学校給食費の無償化に関する条例",
+    name: "枚方市地域包括ケアシステム推進条例",
     status: "approved",
-    status_note: "本会議で可決、来年度から実施",
-    published_at: "2025-09-10T09:00:00+09:00",
+    status_note: "本会議で可決",
+    published_at: "2026-09-10T10:00:00+09:00",
+    publish_status: "published",
+    is_featured: true,
+  },
+  {
+    name: "枚方市学校給食の充実に関する条例",
+    status: "approved",
+    status_note: "本会議で可決、順次実施",
+    published_at: "2026-06-15T09:00:00+09:00",
     publish_status: "published",
     is_featured: false,
   },
   {
-    name: "福岡市防災対策基本条例の一部改正",
+    name: "枚方市防災・減災まちづくり基本条例の一部改正",
     status: "rejected",
     status_note: "本会議で否決",
-    published_at: "2025-09-20T10:00:00+09:00",
+    published_at: "2026-06-20T10:00:00+09:00",
     publish_status: "published",
     is_featured: false,
   },
@@ -200,11 +190,11 @@ export function createBillsTags(
   insertedTags: { id: string; label: string }[]
 ): Omit<BillsTagsInsert, "id" | "created_at">[] {
   const billTagMap: { [billName: string]: string[] } = {
-    "福岡市子ども医療費助成条例の一部改正": ["子育て・教育"],
-    "福岡市地域包括ケアシステム推進条例": ["福祉・医療"],
-    "福岡市公園条例の一部改正": ["まちづくり・環境"],
-    "福岡市学校給食費の無償化に関する条例": ["子育て・教育"],
-    "福岡市防災対策基本条例の一部改正": ["まちづくり・環境"],
+    "枚方市子ども医療費助成条例の一部改正": ["子育て・教育"],
+    "枚方市駅周辺再整備基本方針に基づく都市基盤整備事業": ["まちづくり・環境"],
+    "枚方市地域包括ケアシステム推進条例": ["福祉・医療"],
+    "枚方市学校給食の充実に関する条例": ["子育て・教育"],
+    "枚方市防災・減災まちづくり基本条例の一部改正": ["まちづくり・環境"],
   };
 
   const billsTags: Omit<BillsTagsInsert, "id" | "created_at">[] = [];
@@ -225,40 +215,40 @@ export function createBillsTags(
   return billsTags;
 }
 
-// 会派見解データ
+// 会派見解データ（みらい会派）
 const factionStancesData: Omit<
   FactionStanceInsert,
   "bill_id" | "faction_id"
 >[] = [
   {
     type: "for",
-    comment: `子どもの医療費助成の拡充は、子育て世代の経済的負担を軽減する重要な施策です。
+    comment: `子どもの医療費助成の拡充は、子育て世代の経済的負担を軽減し、枚方市における安心して子育てができる環境づくりに不可欠な施策です。
 
-福岡市の子育て環境をより良くし、安心して子育てできるまちづくりに貢献すると考えます。`,
+近隣自治体との均衡や定住促進の観点からも早期の実施を支持します。`,
   },
   {
     type: "for",
-    comment: `高齢化が進む中、地域包括ケアシステムの推進は福岡市にとって重要な課題です。
+    comment: `枚方市駅周辺の再整備は、枚方市の未来のにぎわいと地域経済の活性化を牽引する極めて重要なプロジェクトです。
 
-医療・介護・予防・住まい・生活支援を一体的に提供する体制の整備は、市民の安心につながります。`,
+市民や来訪者にとって歩きやすく利便性の高い駅前空間の形成を強く後押しします。`,
   },
   {
     type: "for",
-    comment: `公園は市民の憩いの場であり、防災拠点としても重要です。
+    comment: `高齢化が進む中、地域包括ケアシステムの推進は枚方市にとって喫緊の課題です。
 
-この条例改正により、公園の利活用が促進され、地域コミュニティの活性化が期待できます。`,
+医療・介護・予防・住まい・生活支援が切れ目なく連携する体制の整備は、市民一人ひとりの安心な暮らしを支えます。`,
   },
   {
     type: "for",
-    comment: `学校給食の無償化は、子育て支援と教育の充実を同時に実現する重要な政策です。
+    comment: `学校給食の充実は、子どもの健やかな成長と食育の推進を支える重要な施策です。
 
-全ての子どもが質の高い食事を平等に受けられることは、健康格差の解消にもつながります。福岡市の地元食材を活用した食育の推進も期待できます。`,
+地元食材の活用や栄養バランスの取れた温かい給食の提供により、教育環境の向上を期待します。`,
   },
   {
     type: "against",
-    comment: `防災対策の強化は重要ですが、現行条例の運用改善で対応できる部分も多いと考えます。
+    comment: `防災・減災対策の強化は重要ですが、今回の改正案における市民・民間事業者への一律の義務付けは過度な負担となる懸念があります。
 
-条例改正よりも先に、現場レベルでの防災訓練の充実や地域防災力の向上に注力すべきです。`,
+まずは行政による基盤整備と実効性のある支援策の具体化を先行させるべきです。`,
   },
 ];
 
@@ -321,7 +311,6 @@ export function createInterviewSessions(
     "id" | "created_at" | "updated_at"
   >[] = [];
 
-  // 20回ループして100件作成
   for (let i = 0; i < 20; i++) {
     const baseOffset = i * 86400000 * 3; // 3日ずつずらす
 
@@ -329,57 +318,39 @@ export function createInterviewSessions(
     sessions.push({
       interview_config_id: interviewConfigId,
       user_id: `00000000-0000-0000-0000-${String(i * 5 + 1).padStart(12, "0")}`,
-      started_at: new Date(
-        now.getTime() - baseOffset - 3600000
-      ).toISOString(),
-      completed_at: new Date(
-        now.getTime() - baseOffset - 3000000
-      ).toISOString(),
+      started_at: new Date(now.getTime() - baseOffset - 3600000).toISOString(),
+      completed_at: new Date(now.getTime() - baseOffset - 3000000).toISOString(),
     });
 
     // パターン2: 完了 + レポートあり（反対）
     sessions.push({
       interview_config_id: interviewConfigId,
       user_id: `00000000-0000-0000-0000-${String(i * 5 + 2).padStart(12, "0")}`,
-      started_at: new Date(
-        now.getTime() - baseOffset - 7200000
-      ).toISOString(),
-      completed_at: new Date(
-        now.getTime() - baseOffset - 6600000
-      ).toISOString(),
+      started_at: new Date(now.getTime() - baseOffset - 7200000).toISOString(),
+      completed_at: new Date(now.getTime() - baseOffset - 6600000).toISOString(),
     });
 
     // パターン3: 完了 + レポートあり（中立）
     sessions.push({
       interview_config_id: interviewConfigId,
       user_id: `00000000-0000-0000-0000-${String(i * 5 + 3).padStart(12, "0")}`,
-      started_at: new Date(
-        now.getTime() - baseOffset - 10800000
-      ).toISOString(),
-      completed_at: new Date(
-        now.getTime() - baseOffset - 10200000
-      ).toISOString(),
+      started_at: new Date(now.getTime() - baseOffset - 10800000).toISOString(),
+      completed_at: new Date(now.getTime() - baseOffset - 10200000).toISOString(),
     });
 
     // パターン4: 完了したけどレポート未作成
     sessions.push({
       interview_config_id: interviewConfigId,
       user_id: `00000000-0000-0000-0000-${String(i * 5 + 4).padStart(12, "0")}`,
-      started_at: new Date(
-        now.getTime() - baseOffset - 14400000
-      ).toISOString(),
-      completed_at: new Date(
-        now.getTime() - baseOffset - 13800000
-      ).toISOString(),
+      started_at: new Date(now.getTime() - baseOffset - 14400000).toISOString(),
+      completed_at: new Date(now.getTime() - baseOffset - 13800000).toISOString(),
     });
 
     // パターン5: 進行中（未完了、レポートなし）
     sessions.push({
       interview_config_id: interviewConfigId,
       user_id: `00000000-0000-0000-0000-${String(i * 5 + 5).padStart(12, "0")}`,
-      started_at: new Date(
-        now.getTime() - baseOffset - 1800000
-      ).toISOString(),
+      started_at: new Date(now.getTime() - baseOffset - 1800000).toISOString(),
       completed_at: null,
     });
   }
@@ -405,13 +376,11 @@ export function createInterviewMessages(
       },
       {
         role: "user" as const,
-        content:
-          "なぜなら賛成だからです。市民のためになると思います。",
+        content: "なぜなら賛成だからです。市民のためになると思います。",
       },
       {
         role: "assistant" as const,
-        content:
-          "ありがとうございました。ご意見を承りました。",
+        content: "ありがとうございました。ご意見を承りました。",
       },
     ],
     // パターン2: 反対（完了 + レポートあり）
@@ -431,8 +400,7 @@ export function createInterviewMessages(
       },
       {
         role: "assistant" as const,
-        content:
-          "ありがとうございました。ご意見を承りました。",
+        content: "ありがとうございました。ご意見を承りました。",
       },
     ],
     // パターン3: どちらでもない（完了 + レポートあり）
@@ -441,10 +409,7 @@ export function createInterviewMessages(
         role: "assistant" as const,
         content: "この議案に賛成ですか？反対ですか？",
       },
-      {
-        role: "user" as const,
-        content: "どちらでもないです",
-      },
+      { role: "user" as const, content: "どちらでもないです" },
       {
         role: "assistant" as const,
         content: "その理由を教えてください。",
@@ -455,8 +420,7 @@ export function createInterviewMessages(
       },
       {
         role: "assistant" as const,
-        content:
-          "ありがとうございました。ご意見を承りました。",
+        content: "ありがとうございました。ご意見を承りました。",
       },
     ],
     // パターン4: 完了したけどレポート未作成
@@ -476,8 +440,7 @@ export function createInterviewMessages(
       },
       {
         role: "assistant" as const,
-        content:
-          "ありがとうございました。ご意見を承りました。",
+        content: "ありがとうございました。ご意見を承りました。",
       },
     ],
     // パターン5: 進行中（途中で離脱）
@@ -493,13 +456,9 @@ export function createInterviewMessages(
     ],
   ];
 
-  const messages: Omit<
-    InterviewMessageInsert,
-    "id" | "created_at"
-  >[] = [];
+  const messages: Omit<InterviewMessageInsert, "id" | "created_at">[] = [];
 
   sessionIds.forEach((sessionId, sessionIndex) => {
-    // 5パターンをループ
     const patternIndex = sessionIndex % 5;
     const conversation = conversations[patternIndex];
     conversation.forEach((msg) => {
@@ -514,42 +473,31 @@ export function createInterviewMessages(
   return messages;
 }
 
-// インタビューレポートを作成（パターン1,2,3のみ = 5の倍数で0,1,2番目）
+// インタビューレポートを作成（パターン1,2,3のみ）
 export function createInterviewReports(
   sessionIds: string[]
-): Omit<
-  InterviewReportInsert,
-  "id" | "created_at" | "updated_at"
->[] {
+): Omit<InterviewReportInsert, "id" | "created_at" | "updated_at">[] {
   const reportTemplates = [
     {
       stance: "for" as const,
-      summary:
-        "この議案に賛成。市民のためになると考えている。",
+      summary: "この議案に賛成。市民のためになると考えている。",
       role: "general_citizen" as const,
-      role_description: "議案の内容に賛同する市民",
-      opinions: [
-        { title: "賛成理由", content: "市民のためになる" },
-      ],
+      role_description: "議案の内容に賛同する枚方市民",
+      opinions: [{ title: "賛成理由", content: "市民のためになる" }],
     },
     {
       stance: "against" as const,
       summary: "財源の不明確さを理由に反対。",
       role: "work_related" as const,
-      role_description: "財政面を懸念する市民",
-      opinions: [
-        { title: "反対理由", content: "財源が不明確" },
-      ],
+      role_description: "財政面を懸念する枚方市民",
+      opinions: [{ title: "反対理由", content: "財源が不明確" }],
     },
     {
       stance: "neutral" as const,
-      summary:
-        "判断するにはより多くの情報が必要と考えている。",
+      summary: "判断するにはより多くの情報が必要と考えている。",
       role: "subject_expert" as const,
-      role_description: "慎重な判断を求める市民",
-      opinions: [
-        { title: "態度保留理由", content: "情報不足" },
-      ],
+      role_description: "慎重な判断を求める枚方市民",
+      opinions: [{ title: "態度保留理由", content: "情報不足" }],
     },
   ];
 
@@ -558,7 +506,6 @@ export function createInterviewReports(
     "id" | "created_at" | "updated_at"
   >[] = [];
 
-  // パターン1,2,3（5の倍数で0,1,2番目）のみレポートを作成
   sessionIds.forEach((sessionId, index) => {
     const patternIndex = index % 5;
     if (patternIndex < 3) {
@@ -566,7 +513,7 @@ export function createInterviewReports(
       reports.push({
         interview_session_id: sessionId,
         ...reportTemplates[patternIndex],
-        is_public_by_user: loopIndex < 5, // 最初の5件は公開
+        is_public_by_user: loopIndex < 5,
       });
     }
   });
@@ -575,24 +522,16 @@ export function createInterviewReports(
 }
 
 // デモ用の固定ID
-export const DEMO_SESSION_ID =
-  "00000000-0000-0000-0000-000000000001";
-export const DEMO_REPORT_ID =
-  "00000000-0000-0000-0000-000000000001";
+export const DEMO_SESSION_ID = "00000000-0000-0000-0000-000000000001";
+export const DEMO_REPORT_ID = "00000000-0000-0000-0000-000000000001";
 
 // 4種類のロールを確認するためのデモ用ID
-export const DEMO_SESSION_ID_WORK =
-  "00000000-0000-0000-0000-000000000002";
-export const DEMO_SESSION_ID_DAILY =
-  "00000000-0000-0000-0000-000000000003";
-export const DEMO_SESSION_ID_CITIZEN =
-  "00000000-0000-0000-0000-000000000004";
-export const DEMO_REPORT_ID_WORK =
-  "00000000-0000-0000-0000-000000000002";
-export const DEMO_REPORT_ID_DAILY =
-  "00000000-0000-0000-0000-000000000003";
-export const DEMO_REPORT_ID_CITIZEN =
-  "00000000-0000-0000-0000-000000000004";
+export const DEMO_SESSION_ID_WORK = "00000000-0000-0000-0000-000000000002";
+export const DEMO_SESSION_ID_DAILY = "00000000-0000-0000-0000-000000000003";
+export const DEMO_SESSION_ID_CITIZEN = "00000000-0000-0000-0000-000000000004";
+export const DEMO_REPORT_ID_WORK = "00000000-0000-0000-0000-000000000002";
+export const DEMO_REPORT_ID_DAILY = "00000000-0000-0000-0000-000000000003";
+export const DEMO_REPORT_ID_CITIZEN = "00000000-0000-0000-0000-000000000004";
 
 // デモ用のインタビューセッション（公開、固定ID）
 export function createDemoSession(
@@ -618,31 +557,29 @@ export function createDemoMessages(): Omit<
       interview_session_id: DEMO_SESSION_ID,
       role: "assistant",
       content:
-        "こんにちは！本日はインタビューにご協力いただきありがとうございます。\n\n福岡市議会で審議されている議案について、市民の皆さまのご意見をお聞かせください。この議案について、どのようにお考えですか？",
+        "こんにちは！本日はインタビューにご協力いただきありがとうございます。\n\n枚方市議会で審議されている議案について、市民の皆さまのご意見をお聞かせください。この議案について、どのようにお考えですか？",
     },
     {
       interview_session_id: DEMO_SESSION_ID,
       role: "user",
-      content:
-        "市政のデジタル化や、ムダの削減を達成して欲しい",
+      content: "市政のデジタル化や、子育て支援の拡充を達成して欲しい",
     },
     {
       interview_session_id: DEMO_SESSION_ID,
       role: "assistant",
       content:
-        "なるほど。市政のデジタル化を通じて、行政サービスの効率化と市民の利便性向上を期待されているということですね。とても重要な指摘だと思います。\n\n具体的に、福岡市のどのような行政手続きや窓口サービスがデジタル化されると良いとお考えですか？",
+        "なるほど。行政サービスの効率化と子育て環境の充実を期待されているということですね。とても重要なご指摘だと思います。\n\n具体的に、枚方市のどのような手続きや支援制度が充実すると良いとお考えですか？",
     },
     {
       interview_session_id: DEMO_SESSION_ID,
       role: "user",
       content:
-        "市役所の窓口手続きのオンライン化や、行政文書のデジタル化が進むと市民にとって便利になると期待しています。",
+        "子どもの医療費助成の手続きの簡素化や、オンライン申請の普及が進むと市民にとって大変助かります。",
     },
     {
       interview_session_id: DEMO_SESSION_ID,
       role: "assistant",
-      content:
-        "ありがとうございました。ご意見を承りました。",
+      content: "ありがとうございました。ご意見を承りました。",
     },
   ];
 }
@@ -656,13 +593,12 @@ export function createDemoReport(): InterviewReportInsert {
     summary: "期待と懸念両方がある",
     role: "subject_expert",
     role_description:
-      "福岡市在住の会社員\n行政手続きの煩雑さを日常的に感じている",
+      "枚方市在住の会社員\n行政手続きや子育て支援に関心を持っている",
     opinions: [
       {
-        title:
-          "市政のデジタル化や、ムダの削減を達成して欲しい",
+        title: "市政のデジタル化や、子育て支援の拡充を達成して欲しい",
         content:
-          "市役所の窓口手続きのオンライン化や、行政文書のデジタル化が進むと市民にとって便利になると期待している。",
+          "子どもの医療費助成の手続きの簡素化や、オンライン申請の普及が進むと市民にとって大変助かる。",
       },
     ],
     is_public_by_user: true,
@@ -715,8 +651,7 @@ export function createAdditionalDemoMessages(): Omit<
     {
       interview_session_id: DEMO_SESSION_ID_WORK,
       role: "user",
-      content:
-        "子どもの医療費負担が大きいので、この議案には賛成です。",
+      content: "子どもの医療費負担が大きいので、この議案には賛成です。",
     },
     {
       interview_session_id: DEMO_SESSION_ID_WORK,
@@ -733,8 +668,7 @@ export function createAdditionalDemoMessages(): Omit<
     {
       interview_session_id: DEMO_SESSION_ID_WORK,
       role: "assistant",
-      content:
-        "ありがとうございました。ご意見を承りました。",
+      content: "ありがとうございました。ご意見を承りました。",
     },
     // daily_life_affected セッション用
     {
@@ -746,8 +680,7 @@ export function createAdditionalDemoMessages(): Omit<
     {
       interview_session_id: DEMO_SESSION_ID_DAILY,
       role: "user",
-      content:
-        "子どもが小さいので、医療費の負担が軽くなるのは嬉しいです。",
+      content: "子どもが小さいので、医療費の負担が軽くなるのは嬉しいです。",
     },
     {
       interview_session_id: DEMO_SESSION_ID_DAILY,
@@ -764,8 +697,7 @@ export function createAdditionalDemoMessages(): Omit<
     {
       interview_session_id: DEMO_SESSION_ID_DAILY,
       role: "assistant",
-      content:
-        "ありがとうございました。ご意見を承りました。",
+      content: "ありがとうございました。ご意見を承りました。",
     },
     // general_citizen セッション用
     {
@@ -795,8 +727,7 @@ export function createAdditionalDemoMessages(): Omit<
     {
       interview_session_id: DEMO_SESSION_ID_CITIZEN,
       role: "assistant",
-      content:
-        "ありがとうございました。ご意見を承りました。",
+      content: "ありがとうございました。ご意見を承りました。",
     },
   ];
 }
@@ -808,11 +739,10 @@ export function createAdditionalDemoReports(): InterviewReportInsert[] {
       id: DEMO_REPORT_ID_WORK,
       interview_session_id: DEMO_SESSION_ID_WORK,
       stance: "for",
-      summary:
-        "子育て世帯として医療費負担軽減のため賛成",
+      summary: "子育て世帯として医療費負担軽減のため賛成",
       role: "work_related",
       role_description:
-        "福岡市在住の共働き世帯\n子ども2人\n医療費の負担を日常的に感じている",
+        "枚方市在住の共働き世帯\n子ども2人\n医療費の負担を日常的に感じている",
       opinions: [
         {
           title: "子どもの医療費負担が大きい",
@@ -826,11 +756,10 @@ export function createAdditionalDemoReports(): InterviewReportInsert[] {
       id: DEMO_REPORT_ID_DAILY,
       interview_session_id: DEMO_SESSION_ID_DAILY,
       stance: "for",
-      summary:
-        "子育て中の保護者として医療費負担軽減を期待",
+      summary: "子育て中の保護者として医療費負担軽減を期待",
       role: "daily_life_affected",
       role_description:
-        "福岡市在住の主婦\n小さい子ども2人の子育て中\n医療費の自己負担を日常的に感じている",
+        "枚方市在住の保護者\n小さい子ども2人の子育て中\n医療費の自己負担を日常的に感じている",
       opinions: [
         {
           title: "子どもの医療費負担が大きい",
@@ -844,11 +773,10 @@ export function createAdditionalDemoReports(): InterviewReportInsert[] {
       id: DEMO_REPORT_ID_CITIZEN,
       interview_session_id: DEMO_SESSION_ID_CITIZEN,
       stance: "neutral",
-      summary:
-        "財源と子育て支援のバランスを考慮して判断",
+      summary: "財源と子育て支援のバランスを考慮して判断",
       role: "general_citizen",
       role_description:
-        "福岡市在住の会社員\n子育て支援に関心あり\n市の財政にも関心がある",
+        "枚方市在住の市民\n子育て支援に関心あり\n市の財政にも関心がある",
       opinions: [
         {
           title: "財源と子育て支援のバランス",

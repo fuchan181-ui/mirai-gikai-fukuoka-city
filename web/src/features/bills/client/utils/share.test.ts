@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { siteConfig } from "@/config/site.config";
 import type { BillWithContent } from "../../shared/types";
 import { createBillShareUrl, createShareMessage } from "./share";
 
@@ -35,7 +36,7 @@ describe("createShareMessage", () => {
       } as BillWithContent["bill_content"],
     };
     expect(createShareMessage(bill)).toBe(
-      "わかりやすいタイトル #みらい議会福岡市版"
+      `わかりやすいタイトル #${siteConfig.twitterHashtag}`
     );
   });
 
@@ -44,7 +45,9 @@ describe("createShareMessage", () => {
       ...baseBill,
       bill_content: undefined,
     };
-    expect(createShareMessage(bill)).toBe("正式法案名称 #みらい議会福岡市版");
+    expect(createShareMessage(bill)).toBe(
+      `正式法案名称 #${siteConfig.twitterHashtag}`
+    );
   });
 
   it("falls back to bill.name when bill_content.title is null", () => {
@@ -54,11 +57,13 @@ describe("createShareMessage", () => {
         title: null,
       } as unknown as BillWithContent["bill_content"],
     };
-    expect(createShareMessage(bill)).toBe("正式法案名称 #みらい議会福岡市版");
+    expect(createShareMessage(bill)).toBe(
+      `正式法案名称 #${siteConfig.twitterHashtag}`
+    );
   });
 
-  it("includes hashtag #みらい議会福岡市版", () => {
+  it(`includes hashtag #${siteConfig.twitterHashtag}`, () => {
     const message = createShareMessage(baseBill);
-    expect(message).toContain("#みらい議会福岡市版");
+    expect(message).toContain(`#${siteConfig.twitterHashtag}`);
   });
 });
